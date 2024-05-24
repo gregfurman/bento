@@ -22,7 +22,7 @@ func zmqOutputConfig() *service.ConfigSpec {
 		Description(`
 By default Bento does not build with components that require linking to external libraries. If you wish to build Bento locally with this component then set the build tag ` + "`x_bento_extra`" + `:
 
-` + "```shell" + `
+` + "```bash" + `
 # With go
 go install -tags "x_bento_extra" github.com/warpstreamlabs/bento/cmd/bento@latest
 
