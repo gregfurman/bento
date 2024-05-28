@@ -5,6 +5,13 @@ This file contains all the changes made to this project before it was forked to 
 
 All notable changes to this project will be documented in this file.
 
+## 4.28.0 - TBD
+
+### Added
+
+- Go API: Variadic options added to the public `service.RunCLI` function for customising CLI behaviour.
+- Go API: New schema APIs added with linting, generation and marshalling capabilities.
+
 ## 4.27.0 - 2024-04-23
 
 ### Added
@@ -64,7 +71,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Fixed a regression in v4.25.0 where [template based components](https://warpstreamlabs.github.io/bento/docs/configuration/templating) were not parsing correctly from configs.
+- Fixed a regression in v4.25.0 where [template based components](https://www.benthos.dev/docs/configuration/templating) were not parsing correctly from configs.
 
 ## 4.25.0 - 2024-03-01
 
@@ -72,7 +79,7 @@ All notable changes to this project will be documented in this file.
 
 - Field `address_cache` added to the `socket_server` input.
 - Field `read_header` added to the `amqp_1` input.
-- All inputs with a `codec` field now support a new field `scanner` to replace it. Scanners are more powerful as they are configured in a structured way similar to other component types rather than via a single string field, for more information [check out the scanners page](https://warpstreamlabs.github.io/bento/docs/components/scanners/about).
+- All inputs with a `codec` field now support a new field `scanner` to replace it. Scanners are more powerful as they are configured in a structured way similar to other component types rather than via a single string field, for more information [check out the scanners page](https://www.benthos.dev/docs/components/scanners/about).
 - New `diff` and `patch` Bloblang methods.
 - New `processors` processor.
 - Field `read_header` added to the `amqp_1` input.
@@ -267,7 +274,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Restore message ordering support to `gcp_pubsub` output. This issue was introduced in 4.16.0 as a result of [#1836](https://github.com/warpstreamlabs/bento/pull/1836).
+- Restore message ordering support to `gcp_pubsub` output. This issue was introduced in 4.16.0 as a result of [#1836](https://github.com/benthosdev/benthos/pull/1836).
 - Specifying structured metadata values (non-strings) in unit test definitions should no longer cause linting errors.
 
 ### Changed
@@ -284,7 +291,7 @@ All notable changes to this project will be documented in this file.
 - Field `nak_delay` added to the `nats` input.
 - New `splunk_hec` output.
 - Plugin API: New `NewMetadataExcludeFilterField` function and accompanying `FieldMetadataExcludeFilter` method added.
-- The `pulsar` input and output are now included in the main distribution of Bento again.
+- The `pulsar` input and output are now included in the main distribution of Benthos again.
 - The `gcp_pubsub` input now adds the metadata field `gcp_pubsub_delivery_attempt` to messages when dead lettering is enabled.
 - The `aws_s3` input now adds `s3_version_id` metadata to versioned messages.
 - All compress/decompress components (codecs, bloblang methods, processors) now support `pgzip`.
@@ -307,8 +314,8 @@ All notable changes to this project will be documented in this file.
 - The `kafka_franz` input now supports explicit partitions in the field `topics`.
 - The `kafka_franz` input now supports batching.
 - New `metadata` Bloblang function for batch-aware structured metadata queries.
-- Go API: Running the Bento CLI with a context set with a deadline now triggers graceful termination before the deadline is reached.
-- Go API: New `public/service/servicetest` package added for functions useful for testing custom Bento builds.
+- Go API: Running the Benthos CLI with a context set with a deadline now triggers graceful termination before the deadline is reached.
+- Go API: New `public/service/servicetest` package added for functions useful for testing custom Benthos builds.
 - New `lru` and `ttlru` in-memory caches.
 
 ### Fixed
@@ -322,7 +329,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - The `-e/--env-file` cli flag can now be specified multiple times.
-- New `studio pull` cli subcommand for running [Bento Studio](https://studio.benthos.dev) session deployments.
+- New `studio pull` cli subcommand for running [Benthos Studio](https://studio.benthos.dev) session deployments.
 - Metadata field `kafka_tombstone_message` added to the `kafka` and `kafka_franz` inputs.
 - Method `SetEnvVarLookupFunc` added to the stream builder API.
 - The `discord` input and output now use the official chat client API and no longer rely on poll-based HTTP requests, this should result in more efficient and less erroneous behaviour.
@@ -342,10 +349,10 @@ All notable changes to this project will be documented in this file.
 - Prevented a panic caused when using the `encrypt_aes` and `decrypt_aes` Bloblang methods with a mismatched key/iv lengths.
 - The `snowpipe` field of the `snowflake_put` output can now be omitted from the config without raising an error.
 - Batch-aware processors such as `mapping` and `mutation` should now report correct error metrics.
-- Running `bento blobl server` should no longer panic when a mapping with variable read/writes is executed in parallel.
+- Running `benthos blobl server` should no longer panic when a mapping with variable read/writes is executed in parallel.
 - Speculative fix for the `cloudwatch` metrics exporter rejecting metrics due to `minimum field size of 1, PutMetricDataInput.MetricData[0].Dimensions[0].Value`.
 - The `snowflake_put` output now prevents silent failures under certain conditions. Details [here](https://github.com/snowflakedb/gosnowflake/issues/701).
-- Reduced the amount of pre-compilation of Bloblang based linting rules for documentation fields, this should dramatically improve the start up time of Bento (~1s down to ~200ms).
+- Reduced the amount of pre-compilation of Bloblang based linting rules for documentation fields, this should dramatically improve the start up time of Benthos (~1s down to ~200ms).
 - Environment variable interpolations with an empty fallback (`${FOO:}`) are now valid.
 - Fixed an issue where the `mongodb` output wasn't using bulk send requests according to batching policies.
 - The `amqp_1` input now falls back to accessing `Message.Value` when the data is empty.
@@ -433,7 +440,7 @@ to the [`database/sql` docs](https://pkg.go.dev/database/sql#DB.SetMaxIdleConns)
 - TLS client certs now support both PKCS#1 and PKCS#8 encrypted keys.
 - New `redis_script` processor.
 - New `wasm` processor.
-- Fields marked as secrets will no longer be printed with `bento echo` or debug HTTP endpoints.
+- Fields marked as secrets will no longer be printed with `benthos echo` or debug HTTP endpoints.
 - Add `no_indent` parameter to the `format_json` bloblang method.
 - New `format_xml` bloblang method.
 - New `batched` higher level input type.
@@ -682,7 +689,7 @@ to the [`database/sql` docs](https://pkg.go.dev/database/sql#DB.SetMaxIdleConns)
 
 ## 4.0.0 - 2022-04-20
 
-This is a major version release, for more information and guidance on how to migrate please refer to [https://warpstreamlabs.github.io/bento/docs/guides/migration/v4](https://warpstreamlabs.github.io/bento/docs/guides/migration/v4).
+This is a major version release, for more information and guidance on how to migrate please refer to [https://benthos.dev/docs/guides/migration/v4](https://www.benthos.dev/docs/guides/migration/v4).
 
 ### Added
 
@@ -704,12 +711,12 @@ This is a major version release, for more information and guidance on how to mig
 
 - The `sftp` output no longer opens files in both read and write mode.
 - The `aws_sqs` input with `reset_visibility` set to `false` will no longer reset timeouts on pending messages during gracefully shutdown.
-- The `schema_registry_decode` processor now handles AVRO logical types correctly. Details in [#1198](https://github.com/warpstreamlabs/bento/pull/1198) and [#1161](https://github.com/warpstreamlabs/bento/issues/1161) and also in https://github.com/linkedin/goavro/issues/242.
+- The `schema_registry_decode` processor now handles AVRO logical types correctly. Details in [#1198](https://github.com/benthosdev/benthos/pull/1198) and [#1161](https://github.com/benthosdev/benthos/issues/1161) and also in https://github.com/linkedin/goavro/issues/242.
 
 ### Changed
 
 - All components, features and configuration fields that were marked as deprecated have been removed.
-- The `pulsar` input and output are no longer included in the default Bento builds.
+- The `pulsar` input and output are no longer included in the default Benthos builds.
 - The field `pipeline.threads` field now defaults to `-1`, which automatically matches the host machine CPU count.
 - Old style interpolation functions (`${!json:foo,1}`) are removed in favour of the newer Bloblang syntax (`${! json("foo") }`).
 - The Bloblang functions `meta`, `root_meta`, `error` and `env` now return `null` when the target value does not exist.
@@ -721,8 +728,8 @@ This is a major version release, for more information and guidance on how to mig
 - Outputs that traditionally wrote empty newlines at the end of batches with >1 message when using the `lines` codec (`socket`, `stdout`, `file`, `sftp`) no longer do this by default.
 - The `switch` output field `retry_until_success` now defaults to `false`.
 - All AWS components now have a default `region` field that is empty, allowing environment variables or profile values to be used by default.
-- Serverless distributions of Bento (AWS lambda, etc) have had the default output config changed to reject messages when the processing fails, this should make it easier to handle errors from invocation.
-- The standard metrics emitted by Bento have been largely simplified and improved, for more information [check out the metrics page](https://warpstreamlabs.github.io/bento/docs/components/metrics/about).
+- Serverless distributions of Benthos (AWS lambda, etc) have had the default output config changed to reject messages when the processing fails, this should make it easier to handle errors from invocation.
+- The standard metrics emitted by Benthos have been largely simplified and improved, for more information [check out the metrics page](https://www.benthos.dev/docs/components/metrics/about).
 - The default metrics type is now `prometheus`.
 - The `http_server` metrics type has been renamed to `json_api`.
 - The `stdout` metrics type has been renamed to `logger`.
@@ -733,9 +740,9 @@ This is a major version release, for more information and guidance on how to mig
 - The `dedupe` processor now acts upon individual messages by default, and the `hash` field has been removed.
 - The `log` processor now executes for each individual message of a batch.
 - The `sleep` processor now executes for each individual message of a batch.
-- The `bento test` subcommand no longer walks when targetting a directory, instead use triple-dot syntax (`./dir/...`) or wildcard patterns.
-- Go API: Module name has changed to `github.com/warpstreamlabs/bento/v4`.
-- Go API: All packages within the `lib` directory have been removed in favour of the newer [APIs within `public`](https://pkg.go.dev/github.com/warpstreamlabs/bento/v4/public).
+- The `benthos test` subcommand no longer walks when targetting a directory, instead use triple-dot syntax (`./dir/...`) or wildcard patterns.
+- Go API: Module name has changed to `github.com/benthosdev/benthos/v4`.
+- Go API: All packages within the `lib` directory have been removed in favour of the newer [APIs within `public`](https://pkg.go.dev/github.com/benthosdev/benthos/v4/public).
 - Go API: Distributed tracing is now via the Open Telemetry client library.
 
 ## 3.65.0 - 2022-03-07
@@ -813,11 +820,11 @@ This is a major version release, for more information and guidance on how to mig
 - New Bloblang method `format_json`.
 - Field `collection` in `mongodb` processor and output now supports interpolation functions.
 - Field `output_raw` added to the `jq` processor.
-- The lambda distribution now supports a `BENTO_CONFIG_PATH` environment variable for specifying a custom config path.
+- The lambda distribution now supports a `BENTHOS_CONFIG_PATH` environment variable for specifying a custom config path.
 - Field `metadata` added to `http` and `http_client` components.
 - Field `ordering_key` added to the `gcp_pubsub` output.
 - A suite of new experimental `geoip_` methods have been added.
-- Added flag `--deprecated` to the `bento lint` subcommand for detecting deprecated fields.
+- Added flag `--deprecated` to the `benthos lint` subcommand for detecting deprecated fields.
 
 ### Changed
 
@@ -939,7 +946,7 @@ This is a major version release, for more information and guidance on how to mig
 
 ### Fixed
 
-- The `test` subcommand now expands resource glob patterns (`bento -r "./foo/*.yaml" test ./...`).
+- The `test` subcommand now expands resource glob patterns (`benthos -r "./foo/*.yaml" test ./...`).
 - The Bloblang equality operator now returns `false` when comparing non-null values with `null` rather than a mismatched types error.
 
 ## 3.55.0 - 2021-09-08
@@ -1068,9 +1075,9 @@ This is a major version release, for more information and guidance on how to mig
 - New experimental `discord` input and output.
 - The `http_server` input now adds a metadata field `http_server_verb`.
 - New Bloblang methods `parse_yaml` and `format_yaml`.
-- CLI flag `env-file` added to Bento for parsing dotenv files.
+- CLI flag `env-file` added to Benthos for parsing dotenv files.
 - New `mssql` SQL driver for the `sql` processor and output.
-- New POST endpoint `/resources/{type}/{id}` added to Bento streams mode for dynamically mutating resource configs.
+- New POST endpoint `/resources/{type}/{id}` added to Benthos streams mode for dynamically mutating resource configs.
 
 ### Changed
 
@@ -1189,7 +1196,7 @@ This is a major version release, for more information and guidance on how to mig
 - New output level `metadata.exclude_prefixes` config field for restricting metadata values sent to the following outputs: `kafka`, `aws_s3`, `amqp_0_9`, `redis_streams`, `aws_sqs`, `gcp_pubsub`.
 - All NATS components now have `tls` support.
 - Bloblang now supports context capture in query lambdas.
-- New subcommand `bento blobl server` that hosts a Bloblang editor web application.
+- New subcommand `benthos blobl server` that hosts a Bloblang editor web application.
 - New (experimental) `mongodb` output, cache and processor.
 - New (experimental) `gcp_cloud_storage` input and output.
 - Field `batch_as_multipart` added to the `http_client` output.
@@ -1207,7 +1214,7 @@ This is a major version release, for more information and guidance on how to mig
 
 ### Changed
 
-- Go API: Component implementations now require explicit import from `./public/components/all` in order to be invokable. This should be done automatically at all plugin and custom build entry points. If, however, you notice that your builds have begun complaining that known components do not exist then you will need to explicitly import the package with `_ "github.com/warpstreamlabs/bento/v3/public/components/all"`, if this is the case then please report it as an issue so that it can be dealt with.
+- Go API: Component implementations now require explicit import from `./public/components/all` in order to be invokable. This should be done automatically at all plugin and custom build entry points. If, however, you notice that your builds have begun complaining that known components do not exist then you will need to explicitly import the package with `_ "github.com/Jeffail/benthos/v3/public/components/all"`, if this is the case then please report it as an issue so that it can be dealt with.
 
 ## 3.42.1 - 2021-03-26
 
@@ -1239,7 +1246,7 @@ This is a major version release, for more information and guidance on how to mig
 
 ### New
 
-- New `http` fields `cert_file` and `key_file`, which when specified enforce HTTPS for the general Bento server.
+- New `http` fields `cert_file` and `key_file`, which when specified enforce HTTPS for the general Benthos server.
 - Bloblang method `catch` now supports `deleted()` as an argument.
 
 ### Fixed
@@ -1252,7 +1259,7 @@ This is a major version release, for more information and guidance on how to mig
 ### New
 
 - Experimental `sharded_join` fields added to the `sequence` input.
-- Added a new API for writing Bloblang plugins in Go at [`./public/bloblang`](https://pkg.go.dev/github.com/warpstreamlabs/bento/v3/public/bloblang).
+- Added a new API for writing Bloblang plugins in Go at [`./public/bloblang`](https://pkg.go.dev/github.com/Jeffail/benthos/v3/public/bloblang).
 - Field `fields_mapping` added to the `log` processor.
 
 ### Fixed
@@ -1446,7 +1453,7 @@ This is a major version release, for more information and guidance on how to mig
 
   This change means that string coercion on large numbers (e.g. `root.foo = this.large_int.string()`) should now preserve the original form. However, if you are using plugins that interact with JSON message payloads you must ensure that your plugins are able to process the [`json.Number`](https://golang.org/pkg/encoding/json/#Number) type.
 
-  This change should otherwise not alter the behaviour of your configs, but if you notice odd side effects you can disable this feature by setting the environment variable `BENTO_USE_NUMBER` to `false` (`BENTO_USE_NUMBER=false bento -c ./config.yaml`). Please [raise an issue](https://github.com/warpstreamlabs/bento/issues/new) if this is the case so that it can be looked into.
+  This change should otherwise not alter the behaviour of your configs, but if you notice odd side effects you can disable this feature by setting the environment variable `BENTHOS_USE_NUMBER` to `false` (`BENTHOS_USE_NUMBER=false benthos -c ./config.yaml`). Please [raise an issue](https://github.com/Jeffail/benthos/issues/new) if this is the case so that it can be looked into.
 
 ## 3.31.0 - 2020-10-15
 
@@ -1761,8 +1768,8 @@ This is a major version release, for more information and guidance on how to mig
 
 ### Changed
 
-- Bento now runs in strict mode, but this can be disabled with `--chilled`.
-- The Bento CLI has been revamped, the old flags are still supported but are deprecated.
+- Benthos now runs in strict mode, but this can be disabled with `--chilled`.
+- The Benthos CLI has been revamped, the old flags are still supported but are deprecated.
 - The `http_server` input now accepts requests without a content-type header.
 
 ### Fixed
@@ -1995,7 +2002,7 @@ This is a major version release, for more information and guidance on how to mig
 
 ## 3.0.0 - 2019-09-17
 
-This is a major version release, for more information and guidance on how to migrate please refer to [https://warpstreamlabs.github.io/bento/docs/guides/migration/v3](https://warpstreamlabs.github.io/bento/docs/guides/migration/v3).
+This is a major version release, for more information and guidance on how to migrate please refer to [https://benthos.dev/docs/guides/migration/v3](https://www.benthos.dev/docs/guides/migration/v3).
 
 ### Added
 
@@ -2005,7 +2012,7 @@ This is a major version release, for more information and guidance on how to mig
 
 ### Changed
 
-- Go modules are now fully supported, imports must now include the major version (e.g. `github.com/warpstreamlabs/bento/v3`).
+- Go modules are now fully supported, imports must now include the major version (e.g. `github.com/Jeffail/benthos/v3`).
 - Removed deprecated `mmap_file` buffer.
 - Removed deprecated (and undocumented) metrics paths.
 - Moved field `prefix` from root of `metrics` into relevant child components.
@@ -2024,7 +2031,7 @@ This is a major version release, for more information and guidance on how to mig
 ### Fixed
 
 - The `sqs` output no longer attempts to send invalid attributes with payloads from metadata.
-- During graceful shutdown Bento now scales the attempt to propagate acks for sent messages with the overall system shutdown period.
+- During graceful shutdown Benthos now scales the attempt to propagate acks for sent messages with the overall system shutdown period.
 
 ## 2.15.1 - 2019-09-10
 
@@ -2216,7 +2223,7 @@ This is a major version release, for more information and guidance on how to mig
 - Operator `enum` added to `text` condition.
 - Field `result_type` added to `process_field` processor for marshalling results into non-string types.
 - Go API: Plugin APIs now allow nil config constructors.
-- Registering plugins automatically adds plugin documentation flags to the main Bento service.
+- Registering plugins automatically adds plugin documentation flags to the main Benthos service.
 
 ## 2.7.0 - 2019-06-20
 
@@ -2325,7 +2332,7 @@ This is a major version release, for more information and guidance on how to mig
 
 ### Added
 
-- Core service logic has been moved into new package `service`, making it easier to maintain plugin builds that match upstream Bento.
+- Core service logic has been moved into new package `service`, making it easier to maintain plugin builds that match upstream Benthos.
 
 ## 2.1.1 - 2019-05-17
 
@@ -2349,11 +2356,11 @@ This is a major version release, for more information and guidance on how to mig
 
 ### Changed
 
-This is a major version released due to a series of minor breaking changes, you can read the [full migration guide here](https://warpstreamlabs.github.io/bento/docs/guides/migration/v2).
+This is a major version released due to a series of minor breaking changes, you can read the [full migration guide here](https://www.benthos.dev/docs/guides/migration/v2).
 
 #### Configuration
 
-- Bento now attempts to infer the `type` of config sections whenever the field is omitted, for more information please read this overview: [Concise Configuration](https://warpstreamlabs.github.io/bento/docs/configuration/about#concise-configuration).
+- Benthos now attempts to infer the `type` of config sections whenever the field is omitted, for more information please read this overview: [Concise Configuration](https://www.benthos.dev/docs/configuration/about#concise-configuration).
 - Field `unsubscribe_on_close` of the `nats_stream` input is now `false` by default.
 
 #### Service
@@ -2362,7 +2369,7 @@ This is a major version released due to a series of minor breaking changes, you 
 
 #### Go API
 
-- Package `github.com/warpstreamlabs/bento/lib/processor/condition` changed to `github.com/warpstreamlabs/bento/lib/condition`.
+- Package `github.com/Jeffail/benthos/lib/processor/condition` changed to `github.com/Jeffail/benthos/lib/condition`.
 - Interface `types.Cache` now has `types.Closable` embedded.
 - Interface `types.RateLimit` now has `types.Closable` embedded.
 - Add method `GetPlugin` to interface `types.Manager`.
@@ -2416,7 +2423,7 @@ This is a major version released due to a series of minor breaking changes, you 
 
 ### Fixed
 
-- Bento in streams mode no longer tries to load directory `/bento/streams` by default.
+- Benthos in streams mode no longer tries to load directory `/benthos/streams` by default.
 
 ## 1.19.0 - 2019-05-07
 
@@ -2441,7 +2448,7 @@ This is a major version released due to a series of minor breaking changes, you 
 
 ### Fixed
 
-- The `bento-lambda` distribution now correctly returns all message parts in synchronous execution.
+- The `benthos-lambda` distribution now correctly returns all message parts in synchronous execution.
 
 ### Changed
 
@@ -2470,7 +2477,7 @@ This is a major version released due to a series of minor breaking changes, you 
 
 ### Fixed
 
-- Removed potential `bento-lambda` panic on shut down.
+- Removed potential `benthos-lambda` panic on shut down.
 
 ## 1.14.2 - 2019-04-25
 
@@ -2496,7 +2503,7 @@ This is a major version released due to a series of minor breaking changes, you 
 
 ### Added
 
-- New `bento-lambda` distribution for running Bento as a lambda function.
+- New `benthos-lambda` distribution for running Benthos as a lambda function.
 
 ## 1.12.0 - 2019-04-21
 
@@ -2894,8 +2901,8 @@ This is a major version released due to a series of minor breaking changes, you 
 
 ### Added
 
-- Lint errors are logged (level INFO) during normal Bento operation.
-- New `--strict` command flag which causes Bento to abort when linting errors are found in a config file.
+- Lint errors are logged (level INFO) during normal Benthos operation.
+- New `--strict` command flag which causes Benthos to abort when linting errors are found in a config file.
 
 ## 0.38.4 - 2018-11-26
 
@@ -3315,7 +3322,7 @@ This is a major version released due to a series of minor breaking changes, you 
 ### Added
 
 - Ability to create batches via conditions on message payloads in the `batch` processor.
-- New `--examples` flag for generating specific examples from Bento.
+- New `--examples` flag for generating specific examples from Benthos.
 
 ## 0.19.0 - 2018-07-23
 
@@ -3501,23 +3508,3 @@ This is a major version released due to a series of minor breaking changes, you 
 ### Added
 
 - Goreleaser config for generating release packages.
-
-### Changed
-
-- Back to using Scratch as base for Docker image, instead taking ca-certificates from the build image.
-
-## 0.13.0 - 2018-06-02
-
-### Added
-
-- New `batch` processor for combining payloads up to a number of bytes.
-- New `conditional` processor, allows you to configure a chain of processors to only be run if the payload passes a `condition`.
-- New `--stream` mode features:
-  + POST verb for `/streams` path now supported.
-  + New `--streams-dir` flag for parsing a directory of stream configs.
-
-### Changed
-
-- The `condition` processor has been renamed `filter`.
-- The `custom_delimiter` fields in any line reader types `file`, `stdin`, `stdout`, etc have been renamed `delimiter`, where the behaviour is the same.
-- Now using Alpine as base for Docker image, includes ca-certificates.
