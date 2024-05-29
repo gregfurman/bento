@@ -190,4 +190,3 @@ Contributions are welcome, please [read the guidelines](CONTRIBUTING.md), come a
 [community]: https://warpstreamlabs.github.io/bento/community
 
 [golangci-lint]: https://golangci-lint.run/
-[jaeger]: https://www.jaegertracing.io/

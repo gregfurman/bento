@@ -1,4 +1,4 @@
-.PHONY: all serverless deps docker docker-cgo clean docs test test-race test-integration fmt lint install deploy-docs
+.PHONY: deps test test-race fmt lint
 
 TAGS ?=
 
@@ -87,8 +87,8 @@ fmt:
 	@go mod tidy
 
 lint:
-	@go vet $(GO_FLAGS) ./...
-	@golangci-lint -j $(GOMAXPROCS) run --timeout 5m cmd/... internal/... public/...
+	@go vet ./...
+	@golangci-lint -j $(GOMAXPROCS) run --timeout 5m internal/... public/...
 
 test: $(APPS)
 	@go test $(GO_FLAGS) -ldflags "$(LD_FLAGS)" -timeout 3m ./...

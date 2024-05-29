@@ -17,8 +17,8 @@ import (
 
 func TestMappingConfigAny(t *testing.T) {
 	conf, err := metrics.FromAny(bundle.GlobalEnvironment, map[string]any{
-		"prometheus": map[string]any{},
-		"mapping":    `meta foo = "bar"`,
+		"json_api": map[string]any{},
+		"mapping":  `meta foo = "bar"`,
 	})
 	require.NoError(t, err)
 
@@ -32,14 +32,14 @@ func TestMappingConfigAny(t *testing.T) {
 
 	body := getPage(t, ns.Child().HandlerFunc())
 
-	assert.Contains(t, body, "\ncountertwo{foo=\"bar\",label1=\"value1\"} 10")
-	assert.Contains(t, body, "\ncountertwo{foo=\"bar\",label1=\"value2\"} 11")
-	assert.Contains(t, body, "\ncountertwo{foo=\"bar\",label1=\"value3\"} 10.452")
+	assert.Contains(t, body, `"countertwo{foo=\"bar\",label1=\"value1\"}":10`)
+	assert.Contains(t, body, `countertwo{foo=\"bar\",label1=\"value2\"}":11`)
+	assert.Contains(t, body, `countertwo{foo=\"bar\",label1=\"value3\"}":10`)
 }
 
 func TestMappingConfigYAML(t *testing.T) {
 	n, err := docs.UnmarshalYAML([]byte(`
-prometheus: {}
+json_api: {}
 mapping: 'meta foo = "bar"'
 `))
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ mapping: 'meta foo = "bar"'
 
 	body := getPage(t, ns.Child().HandlerFunc())
 
-	assert.Contains(t, body, "\ncountertwo{foo=\"bar\",label1=\"value1\"} 10")
-	assert.Contains(t, body, "\ncountertwo{foo=\"bar\",label1=\"value2\"} 11")
-	assert.Contains(t, body, "\ncountertwo{foo=\"bar\",label1=\"value3\"} 10.452")
+	assert.Contains(t, body, `"countertwo{foo=\"bar\",label1=\"value1\"}":10`)
+	assert.Contains(t, body, `"countertwo{foo=\"bar\",label1=\"value2\"}":11`)
+	assert.Contains(t, body, `"countertwo{foo=\"bar\",label1=\"value3\"}":10`)
 }
