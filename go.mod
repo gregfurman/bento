@@ -76,6 +76,7 @@ require (
 	github.com/itchyny/gojq v0.12.14
 	github.com/itchyny/timefmt-go v0.1.5
 	github.com/jackc/pgx/v4 v4.18.3
+	github.com/jhump/protoreflect v1.16.0
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/klauspost/compress v1.17.8
 	github.com/klauspost/pgzip v1.2.6
@@ -138,6 +139,7 @@ require (
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.24.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
+	golang.org/x/net v0.26.0
 	golang.org/x/oauth2 v0.21.0
 	golang.org/x/sync v0.7.0
 	golang.org/x/text v0.16.0
@@ -198,6 +200,7 @@ require (
 	github.com/btnguyen2k/consu/olaf v0.1.3 // indirect
 	github.com/btnguyen2k/consu/reddo v0.1.8 // indirect
 	github.com/btnguyen2k/consu/semita v0.1.5 // indirect
+	github.com/bufbuild/protocompile v0.10.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/containerd/continuity v0.4.3 // indirect
@@ -315,7 +318,6 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/term v0.21.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
