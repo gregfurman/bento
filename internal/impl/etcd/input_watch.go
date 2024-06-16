@@ -10,29 +10,29 @@ import (
 
 func etcdWatchFields() []*service.ConfigField {
 	return []*service.ConfigField{
-		service.NewObjectField(watchField,
-			service.NewStringField(watchKeyField).
-				Description("The key or prefix being watched.").
-				Default(""),
-			service.NewBoolField(watchWithPrefixField).
+		service.NewStringField(etcdWatchKeyField).
+			Description("The key or prefix being watched.").
+			Default(""),
+		service.NewObjectField(etcdOperationOptions,
+			service.NewBoolField(etcdWatchWithPrefixField).
 				Description("Whether to watch for events on a prefix.").
 				Default(false),
-			service.NewBoolField(watchWithProgressNotifyField).
+			service.NewBoolField(etcdWatchWithProgressNotifyField).
 				Description("Whether to send periodic progress updates every 10 minutes when there is no incoming events.").
 				Default(false),
-			service.NewBoolField(watchWithFilterPut).
+			service.NewBoolField(etcdWatchWithFilterPut).
 				Description("Whether to discard PUT events from the watcher.").
 				Default(false),
-			service.NewBoolField(watchWithFilterDelete).
+			service.NewBoolField(etcdWatchWithFilterDelete).
 				Description("Whether to discard DELETE events from the watcher.").
 				Default(false),
-			service.NewBoolField(watchWithCreatedNotifyField).
+			service.NewBoolField(etcdWatchWithCreatedNotifyField).
 				Description("Whether to send CREATED notify events to the watcher.").
 				Default(false),
-			service.NewStringField(watchWithRangeField).
+			service.NewStringField(etcdWatchWithRangeField).
 				Description("Will cause the watcher to return a range of lexicographically sorted keys to return in the form `[key, end)` where `end` is the passed parameter.").
 				Default(""),
-		).Description("Collection of options to configure an etcd watcher.").Advanced(),
+		).Description("Collection of options to configure an etcd watcher."),
 	}
 }
 
@@ -50,7 +50,7 @@ func etcdConfigSpec() *service.ConfigSpec {
 
 func init() {
 	err := service.RegisterInput(
-		"etcd", etcdConfigSpec(),
+		etcdWatchField, etcdConfigSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Input, error) {
 			reader, err := newEtcdWatchInputFromConfig(conf, mgr)
 			if err != nil {
@@ -79,37 +79,37 @@ func getWatchOptionsFromConfig(parsedConf *service.ParsedConfig) ([]clientv3.OpO
 		}
 	}
 
-	withPrefix, err := parsedConf.FieldBool(watchField, watchWithPrefixField)
+	withPrefix, err := parsedConf.FieldBool(etcdWatchField, etcdWatchWithPrefixField)
 	if err != nil {
 		return nil, err
 	}
 	shouldAddToWatchOptions(withPrefix, clientv3.WithPrefix())
 
-	withProgressNotify, err := parsedConf.FieldBool(watchField, watchWithProgressNotifyField)
+	withProgressNotify, err := parsedConf.FieldBool(etcdWatchField, etcdWatchWithProgressNotifyField)
 	if err != nil {
 		return nil, err
 	}
 	shouldAddToWatchOptions(withProgressNotify, clientv3.WithProgressNotify())
 
-	withCreatedNotify, err := parsedConf.FieldBool(watchField, watchWithCreatedNotifyField)
+	withCreatedNotify, err := parsedConf.FieldBool(etcdWatchField, etcdWatchWithCreatedNotifyField)
 	if err != nil {
 		return nil, err
 	}
 	shouldAddToWatchOptions(withCreatedNotify, clientv3.WithCreatedNotify())
 
-	withFilterPut, err := parsedConf.FieldBool(watchField, watchWithFilterPut)
+	withFilterPut, err := parsedConf.FieldBool(etcdWatchField, etcdWatchWithFilterPut)
 	if err != nil {
 		return nil, err
 	}
 	shouldAddToWatchOptions(withFilterPut, clientv3.WithFilterPut())
 
-	withFilterDelete, err := parsedConf.FieldBool(watchField, watchWithFilterDelete)
+	withFilterDelete, err := parsedConf.FieldBool(etcdWatchField, etcdWatchWithFilterDelete)
 	if err != nil {
 		return nil, err
 	}
 	shouldAddToWatchOptions(withFilterDelete, clientv3.WithFilterDelete())
 
-	withRange, err := parsedConf.FieldString(watchField, watchWithRangeField)
+	withRange, err := parsedConf.FieldString(etcdWatchField, etcdWatchWithRangeField)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func newEtcdWatchInputFromConfig(parsedConf *service.ParsedConfig, mgr *service.
 		return nil, err
 	}
 
-	watchKey, err := parsedConf.FieldString(watchField, watchKeyField)
+	watchKey, err := parsedConf.FieldString(etcdWatchField, etcdWatchKeyField)
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +164,11 @@ func (e *etcdWatchInput) Read(ctx context.Context) (*service.Message, service.Ac
 
 	select {
 	case resp := <-e.watchCh:
+		if err := resp.Err(); err != nil {
+			return nil, nil, err
+		}
 		msg := service.NewMessage(nil)
-		msg.SetStructured(resp)
+		msg.SetStructured(resp.Events)
 		return msg, ack, nil
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()

@@ -2,45 +2,46 @@ package etcd
 
 import (
 	"context"
+
 	"github.com/warpstreamlabs/bento/public/service"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 func etcdClientFields() []*service.ConfigField {
 	return []*service.ConfigField{
-		service.NewURLListField(endpointsField).
+		service.NewURLListField(etcdEndpointsField).
 			Description("A set of URLs (schemes, hosts and ports only) that can be used to communicate with a logical etcd cluster. If multiple endpoints are provided, the Client will attempt to use them all in the event that one or more of them are unusable.").
 			Examples(
 				[]string{"etcd://:2379"},
 				[]string{"etcd://localhost:2379"},
 				[]string{"etcd://localhost:2379", "etcd://localhost:22379", "etcd://localhost:32379"},
 			),
-		service.NewObjectField(authField,
-			service.NewBoolField(authEnabledField).
+		service.NewObjectField(etcdAuthField,
+			service.NewBoolField(etcdAuthEnabledField).
 				Description("Whether to use password authentication").
 				Default(false),
-			service.NewStringField(authUsernameField).
+			service.NewStringField(etcdAuthUsernameField).
 				Description("The username to authenticate as.").
 				Default(""),
-			service.NewStringField(authPasswordField).
+			service.NewStringField(etcdAuthPasswordField).
 				Description("The password to authenticate with.").
 				Secret().
 				Default(""),
 		).
 			Description("Optional configuration of etcd authentication headers.").
 			Advanced(),
-		service.NewDurationField(dialTimeoutField).
+		service.NewDurationField(etcdDialTimeoutField).
 			Description("Timeout for failing to establish a connection.").
 			Optional(),
-		service.NewDurationField(keepAliveTimeField).
+		service.NewDurationField(etcdKeepAliveTimeField).
 			Description("Time after which client pings the server to see if transport is alive.").
 			Optional(),
-		service.NewDurationField(keepAliveTimoutField).
+		service.NewDurationField(etcdKeepAliveTimoutField).
 			Description("Time that the client waits for a response for the keep-alive probe. If the response is not received in this time, the connection is closed.").
 			Optional(),
-		service.NewDurationField(requestTimeoutField).
+		service.NewDurationField(etcdRequestTimeoutField).
 			Description("Timeout for a single request. This includes connection time, any redirects, and header wait time."),
-		service.NewTLSToggledField(tlsField).
+		service.NewTLSToggledField(etcdTlsField).
 			Description("Custom TLS settings can be used to override system defaults."),
 	}
 }
@@ -70,17 +71,17 @@ func (e *etcdClient) Close(_ context.Context) error {
 }
 
 func newEtcdConfigFromParsed(parsedConf *service.ParsedConfig, mgr *service.Resources) (*etcdClient, error) {
-	endpointStrs, err := parsedConf.FieldStringList(endpointsField)
+	endpointStrs, err := parsedConf.FieldStringList(etcdEndpointsField)
 	if err != nil {
 		return nil, err
 	}
 
-	dialTimeout, err := parsedConf.FieldDuration(dialTimeoutField)
+	dialTimeout, err := parsedConf.FieldDuration(etcdDialTimeoutField)
 	if err != nil {
 		return nil, err
 	}
 
-	tlsConf, tlsEnabled, err := parsedConf.FieldTLSToggled(tlsField)
+	tlsConf, tlsEnabled, err := parsedConf.FieldTLSToggled(etcdTlsField)
 	if err != nil {
 		return nil, err
 	}
