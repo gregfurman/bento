@@ -34,12 +34,8 @@ input:
   label: ""
   etcd_watch:
     endpoints: [] # No default (required)
-    dial_timeout: "" # No default (optional)
-    keep_alive_time: "" # No default (optional)
-    keep_alive_timeout: "" # No default (optional)
-    request_timeout: "" # No default (required)
+    key: ""
     options:
-      key: ""
       with_prefix: false
       with_progress_notify: false
       with_put_filter: false
@@ -61,10 +57,10 @@ input:
       enabled: false
       username: ""
       password: ""
-    dial_timeout: "" # No default (optional)
-    keep_alive_time: "" # No default (optional)
-    keep_alive_timeout: "" # No default (optional)
-    request_timeout: "" # No default (required)
+    dial_timeout: 5s
+    keep_alive_time: 5s
+    keep_alive_timeout: 1s
+    request_timeout: 1s
     tls:
       enabled: false
       skip_cert_verify: false
@@ -72,8 +68,8 @@ input:
       root_cas: ""
       root_cas_file: ""
       client_certs: []
+    key: ""
     options:
-      key: ""
       with_prefix: false
       with_progress_notify: false
       with_put_filter: false
@@ -151,6 +147,7 @@ Timeout for failing to establish a connection.
 
 
 Type: `string`  
+Default: `"5s"`  
 
 ### `keep_alive_time`
 
@@ -158,6 +155,7 @@ Time after which client pings the server to see if transport is alive.
 
 
 Type: `string`  
+Default: `"5s"`  
 
 ### `keep_alive_timeout`
 
@@ -165,6 +163,7 @@ Time that the client waits for a response for the keep-alive probe. If the respo
 
 
 Type: `string`  
+Default: `"1s"`  
 
 ### `request_timeout`
 
@@ -172,6 +171,7 @@ Timeout for a single request. This includes connection time, any redirects, and 
 
 
 Type: `string`  
+Default: `"1s"`  
 
 ### `tls`
 
@@ -313,20 +313,20 @@ password: foo
 password: ${KEY_PASSWORD}
 ```
 
-### `options`
-
-Collection of options to configure an etcd watcher.
-
-
-Type: `object`  
-
-### `options.key`
+### `key`
 
 The key or prefix being watched.
 
 
 Type: `string`  
 Default: `""`  
+
+### `options`
+
+Collection of options to configure an etcd watcher.
+
+
+Type: `object`  
 
 ### `options.with_prefix`
 

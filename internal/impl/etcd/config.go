@@ -6,10 +6,15 @@ const (
 	etcdTlsField         = "tls"
 	etcdOperationOptions = "options"
 
+	// etcd common options
+	etcdKeyField        = "key"
+	etcdWithPrefixField = "with_prefix"
+
+	// etcd return options
+	etcdWatchWithKeysOnly = "with_keys_only"
+
 	// etcd watch options
 	etcdWatchField                   = "etcd_watch"
-	etcdWatchKeyField                = "key"
-	etcdWatchWithPrefixField         = "with_prefix"
 	etcdWatchWithProgressNotifyField = "with_progress_notify"
 	etcdWatchWithCreatedNotifyField  = "with_created_notify"
 	etcdWatchWithFilterPut           = "with_put_filter"

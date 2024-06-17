@@ -32,17 +32,27 @@ func etcdClientFields() []*service.ConfigField {
 			Advanced(),
 		service.NewDurationField(etcdDialTimeoutField).
 			Description("Timeout for failing to establish a connection.").
-			Optional(),
+			Optional().
+			Default("5s").
+			Advanced(),
 		service.NewDurationField(etcdKeepAliveTimeField).
 			Description("Time after which client pings the server to see if transport is alive.").
-			Optional(),
+			Optional().
+			Default("5s").
+			Advanced(),
 		service.NewDurationField(etcdKeepAliveTimoutField).
 			Description("Time that the client waits for a response for the keep-alive probe. If the response is not received in this time, the connection is closed.").
-			Optional(),
+			Optional().
+			Default("1s").
+			Advanced(),
 		service.NewDurationField(etcdRequestTimeoutField).
-			Description("Timeout for a single request. This includes connection time, any redirects, and header wait time."),
+			Description("Timeout for a single request. This includes connection time, any redirects, and header wait time.").
+			Optional().
+			Default("1s").
+			Advanced(),
 		service.NewTLSToggledField(etcdTlsField).
-			Description("Custom TLS settings can be used to override system defaults."),
+			Description("Custom TLS settings can be used to override system defaults.").
+			Advanced(),
 	}
 }
 
