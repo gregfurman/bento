@@ -1,36 +1,107 @@
 package etcd
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/server/v3/embed"
+	"github.com/stretchr/testify/require"
+
+	_ "github.com/warpstreamlabs/bento/public/components/pure"
+	"github.com/warpstreamlabs/bento/public/service/integration"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 func TestIntegrationEtcd(t *testing.T) {
+	integration.CheckSkip(t)
+	t.Parallel()
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err)
+	pool.MaxWait = time.Second * 30
+
+	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository:   "bitnami/etcd",
+		Tag:          "latest",
+		ExposedPorts: []string{"2379", "2380"},
+		Env: []string{
+			"ALLOW_NONE_AUTHENTICATION=yes",
+			"ETCD_ADVERTISE_CLIENT_URLS=http://localhost:2379",
+		},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		assert.NoError(t, pool.Purge(resource))
+	})
+
+	_ = resource.Expire(900)
+	var cli *clientv3.Client
+	require.NoError(t, pool.Retry(func() (err error) {
+		defer func() {
+			if err != nil {
+				t.Logf("error: %v", err)
+			}
+		}()
+
+		cli, err = clientv3.New(clientv3.Config{
+			Endpoints: []string{"http://localhost:2379"},
+		})
+
+		return err
+	}))
+
+	defer t.Cleanup(func() {
+		cli.Close()
+	})
+
+	etcdWatchIntegrationSuite(t)
+	// _, err = cli.Put(context.Background(), "foo", `{ "bar" : "baz" }`)
+
 }
 
-func startETCDServer(t *testing.T) (endpoint string, close func()) {
-	cfg := embed.NewConfig()
-	cfg.Logger = "zap"
-	cfg.LogOutputs = []string{"/dev/null"}
-	cfg.Dir = filepath.Join(os.TempDir(), fmt.Sprint(time.Now().Nanosecond()))
+func etcdWatchIntegrationSuite(t *testing.T) {
 
-	srv, err := embed.StartEtcd(cfg)
-	assert.Nil(t, err)
+	t.Run("watches_single_key", func(t *testing.T) {
+		template := `
+input:
+	etcd:
+	key: "foo"
+	endpoints:
+		- "http://localhost:2379"`
 
-	select {
-	case <-srv.Server.ReadyNotify():
-	case <-time.After(3 * time.Second):
-		t.Fatalf("Failed to start embed.Etcd for tests")
-	}
+		// streamOutBuilder := service.NewStreamBuilder()
+		// require.NoError(t, streamOutBuilder.SetLoggerYAML(`level: OFF`))
+		// require.NoError(t, streamOutBuilder.AddInputYAML(template))
 
-	return cfg.AdvertiseClientUrls[0].String(), func() {
-		os.RemoveAll(cfg.Dir)
-		srv.Close()
-	}
+		suite := integration.StreamTests(
+			integration.StreamTestOpenClose(),
+			integration.StreamTestSendBatch(10),
+			integration.StreamTestStreamParallel(1000),
+		)
+
+		suite.Run(t, template)
+	})
+
+	t.Run("watches_all_keys", func(t *testing.T) {
+		template := `
+input:
+	etcd:
+	key: ""
+	endpoints:
+		- "http://localhost:2379"
+	options:
+      with_prefix: true`
+
+		suite := integration.StreamTests(
+			integration.StreamTestOpenClose(),
+			integration.StreamTestSendBatch(10),
+			integration.StreamTestStreamParallel(1000),
+		)
+
+		suite.Run(t, template)
+
+	})
+
 }

@@ -2,7 +2,6 @@ package etcd
 
 import (
 	"context"
-	"errors"
 
 	"github.com/warpstreamlabs/bento/public/service"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -43,29 +42,34 @@ func etcdConfigSpec() *service.ConfigSpec {
 		Summary("Configures an etcd event watcher.").
 		Description(`Watches an etcd key or prefix for new events.`). // TODO: Add more documentation
 		Fields(etcdClientFields()...).
-		Fields(etcdWatchFields()...)
+		Fields(etcdWatchFields()...).
+		Field(service.NewAutoRetryNacksToggleField())
 
 	return spec
 }
 
+func newEtcdWatchInput(conf *service.ParsedConfig, mgr *service.Resources) (service.Input, error) {
+	reader, err := newEtcdWatchInputFromConfig(conf, mgr)
+	if err != nil {
+		return nil, err
+	}
+
+	return service.AutoRetryNacksToggled(conf, reader)
+}
+
 func init() {
-	err := service.RegisterInput(
-		etcdWatchField, etcdConfigSpec(),
-		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Input, error) {
-			reader, err := newEtcdWatchInputFromConfig(conf, mgr)
-			if err != nil {
-				return nil, err
-			}
-			return reader, nil
-		})
+	err := service.RegisterInput("etcd", etcdConfigSpec(), newEtcdWatchInput)
 	if err != nil {
 		panic(err)
 	}
 }
 
 type etcdWatchInput struct {
-	client       *etcdClient
-	watchKey     string // TODO: Potentially allow multiple keys/prefixes to be watched (multiplexing)
+	watchKey string // TODO: Potentially allow multiple keys/prefixes to be watched (multiplexing)
+
+	client     *clientv3.Client
+	clientConf *clientv3.Config
+
 	watchCh      clientv3.WatchChan
 	watchOptions []clientv3.OpOption
 }
@@ -119,7 +123,7 @@ func getWatchOptionsFromConfig(parsedConf *service.ParsedConfig) ([]clientv3.OpO
 }
 
 func newEtcdWatchInputFromConfig(parsedConf *service.ParsedConfig, mgr *service.Resources) (*etcdWatchInput, error) {
-	client, err := newEtcdConfigFromParsed(parsedConf, mgr)
+	config, err := newEtcdConfigFromParsed(parsedConf)
 	if err != nil {
 		return nil, err
 	}
@@ -135,37 +139,37 @@ func newEtcdWatchInputFromConfig(parsedConf *service.ParsedConfig, mgr *service.
 	}
 
 	return &etcdWatchInput{
-		client:       client,
+		clientConf:   config,
 		watchKey:     watchKey,
 		watchOptions: opts,
 	}, nil
 }
 
 func (e *etcdWatchInput) Connect(ctx context.Context) error {
-	if err := e.client.Connect(ctx); err != nil {
+	client, err := newEtcdClientFromConfig(ctx, e.clientConf)
+	if err != nil {
 		return err
 	}
 
-	if e.client.cli == nil {
-		return errors.New("etcd client is nil")
-	}
-
-	// TODO: this should be changed to start reading immediately
-	e.watchCh = clientv3.NewWatcher(e.client.cli).Watch(ctx, e.watchKey, e.watchOptions...)
+	e.client = client
+	e.watchCh = clientv3.NewWatcher(e.client).Watch(ctx, e.watchKey, e.watchOptions...)
 
 	return nil
 }
 
 func (e *etcdWatchInput) Read(ctx context.Context) (*service.Message, service.AckFunc, error) {
-	// TODO: Should this be a BatchReader?
-	ack := func(ctx context.Context, err error) error {
-		return nil
-	}
-
 	select {
-	case resp := <-e.watchCh:
+	case resp, open := <-e.watchCh:
 		if err := resp.Err(); err != nil {
 			return nil, nil, err
+		}
+
+		if resp.Canceled {
+			return nil, nil, service.ErrEndOfInput
+		}
+
+		if !open {
+			return nil, nil, service.ErrNotConnected
 		}
 
 		msg := service.NewMessage(nil)
@@ -177,7 +181,9 @@ func (e *etcdWatchInput) Read(ctx context.Context) (*service.Message, service.Ac
 
 		msg.SetBytes(eventsBytes)
 
-		return msg, ack, nil
+		return msg, func(ctx context.Context, err error) error {
+			return err
+		}, nil
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
 	}
@@ -185,7 +191,7 @@ func (e *etcdWatchInput) Read(ctx context.Context) (*service.Message, service.Ac
 
 func (e *etcdWatchInput) Close(ctx context.Context) error {
 	if e.client != nil {
-		return e.client.Close(ctx)
+		return e.client.Close()
 	}
 
 	return nil

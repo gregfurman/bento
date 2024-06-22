@@ -34,10 +34,16 @@ input:
   label: ""
   etcd:
     endpoints: [] # No default (required)
-    dial_timeout: "" # No default (optional)
-    keep_alive_time: "" # No default (optional)
-    keep_alive_timeout: "" # No default (optional)
-    request_timeout: "" # No default (required)
+    auto_sync_interval: "" # No default (optional)
+    key: ""
+    options:
+      with_prefix: false
+      with_progress_notify: false
+      with_put_filter: false
+      with_delete_filter: false
+      with_created_notify: false
+      with_range: ""
+    auto_replay_nacks: true
 ```
 
 </TabItem>
@@ -53,10 +59,10 @@ input:
       enabled: false
       username: ""
       password: ""
-    dial_timeout: "" # No default (optional)
-    keep_alive_time: "" # No default (optional)
-    keep_alive_timeout: "" # No default (optional)
-    request_timeout: "" # No default (required)
+    dial_timeout: 5s
+    keep_alive_time: 5s
+    keep_alive_timeout: 1s
+    request_timeout: 1s
     tls:
       enabled: false
       skip_cert_verify: false
@@ -64,14 +70,23 @@ input:
       root_cas: ""
       root_cas_file: ""
       client_certs: []
-    watch:
-      key: ""
+    auto_sync_interval: "" # No default (optional)
+    max_call_send_msg_size: 0 # No default (optional)
+    max_call_recv_msg_size: 0 # No default (optional)
+    reject_old_cluster: false
+    permit_without_stream: false
+    max_unary_retries: 0 # No default (optional)
+    backoff_wait_between: "" # No default (optional)
+    backoff_jitter_fraction: 0 # No default (optional)
+    key: ""
+    options:
       with_prefix: false
       with_progress_notify: false
       with_put_filter: false
       with_delete_filter: false
       with_created_notify: false
       with_range: ""
+    auto_replay_nacks: true
 ```
 
 </TabItem>
@@ -143,6 +158,7 @@ Timeout for failing to establish a connection.
 
 
 Type: `string`  
+Default: `"5s"`  
 
 ### `keep_alive_time`
 
@@ -150,6 +166,7 @@ Time after which client pings the server to see if transport is alive.
 
 
 Type: `string`  
+Default: `"5s"`  
 
 ### `keep_alive_timeout`
 
@@ -157,6 +174,7 @@ Time that the client waits for a response for the keep-alive probe. If the respo
 
 
 Type: `string`  
+Default: `"1s"`  
 
 ### `request_timeout`
 
@@ -164,6 +182,7 @@ Timeout for a single request. This includes connection time, any redirects, and 
 
 
 Type: `string`  
+Default: `"1s"`  
 
 ### `tls`
 
@@ -305,14 +324,65 @@ password: foo
 password: ${KEY_PASSWORD}
 ```
 
-### `watch`
+### `auto_sync_interval`
 
-Collection of options to configure an etcd watcher.
+The interval to update endpoints with its latest members. 0 disables auto-sync. By default auto-sync is disabled.
 
 
-Type: `object`  
+Type: `string`  
 
-### `watch.key`
+### `max_call_send_msg_size`
+
+The client-side request send limit in bytes. If 0, it defaults to 2.0 MiB (2 * 1024 * 1024).
+
+
+Type: `int`  
+
+### `max_call_recv_msg_size`
+
+The client-side response receive limit. If 0, it defaults to math.MaxInt32.
+
+
+Type: `int`  
+
+### `reject_old_cluster`
+
+When set, will refuse to create a client against an outdated cluster.
+
+
+Type: `bool`  
+Default: `false`  
+
+### `permit_without_stream`
+
+When set, will allow client to send keepalive pings to server without any active streams (RPCs).
+
+
+Type: `bool`  
+Default: `false`  
+
+### `max_unary_retries`
+
+The maximum number of retries for unary RPCs.
+
+
+Type: `int`  
+
+### `backoff_wait_between`
+
+The wait time before retrying an RPC.
+
+
+Type: `string`  
+
+### `backoff_jitter_fraction`
+
+The jitter fraction to randomize backoff wait time.
+
+
+Type: `float`  
+
+### `key`
 
 The key or prefix being watched.
 
@@ -320,7 +390,14 @@ The key or prefix being watched.
 Type: `string`  
 Default: `""`  
 
-### `watch.with_prefix`
+### `options`
+
+Collection of options to configure an etcd watcher.
+
+
+Type: `object`  
+
+### `options.with_prefix`
 
 Whether to watch for events on a prefix.
 
@@ -328,7 +405,7 @@ Whether to watch for events on a prefix.
 Type: `bool`  
 Default: `false`  
 
-### `watch.with_progress_notify`
+### `options.with_progress_notify`
 
 Whether to send periodic progress updates every 10 minutes when there is no incoming events.
 
@@ -336,7 +413,7 @@ Whether to send periodic progress updates every 10 minutes when there is no inco
 Type: `bool`  
 Default: `false`  
 
-### `watch.with_put_filter`
+### `options.with_put_filter`
 
 Whether to discard PUT events from the watcher.
 
@@ -344,7 +421,7 @@ Whether to discard PUT events from the watcher.
 Type: `bool`  
 Default: `false`  
 
-### `watch.with_delete_filter`
+### `options.with_delete_filter`
 
 Whether to discard DELETE events from the watcher.
 
@@ -352,7 +429,7 @@ Whether to discard DELETE events from the watcher.
 Type: `bool`  
 Default: `false`  
 
-### `watch.with_created_notify`
+### `options.with_created_notify`
 
 Whether to send CREATED notify events to the watcher.
 
@@ -360,12 +437,20 @@ Whether to send CREATED notify events to the watcher.
 Type: `bool`  
 Default: `false`  
 
-### `watch.with_range`
+### `options.with_range`
 
 Will cause the watcher to return a range of lexicographically sorted keys to return in the form `[key, end)` where `end` is the passed parameter.
 
 
 Type: `string`  
 Default: `""`  
+
+### `auto_replay_nacks`
+
+Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If set to `false` these messages will instead be deleted. Disabling auto replays can greatly improve memory efficiency of high throughput streams as the original shape of the data can be discarded immediately upon consumption and mutation.
+
+
+Type: `bool`  
+Default: `true`  
 
 

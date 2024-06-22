@@ -2,6 +2,8 @@ package etcd
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/warpstreamlabs/bento/public/service"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -29,6 +31,7 @@ func etcdClientFields() []*service.ConfigField {
 				Default(""),
 		).
 			Description("Optional configuration of etcd authentication headers.").
+			Optional().
 			Advanced(),
 		service.NewDurationField(etcdDialTimeoutField).
 			Description("Timeout for failing to establish a connection.").
@@ -40,7 +43,7 @@ func etcdClientFields() []*service.ConfigField {
 			Optional().
 			Default("5s").
 			Advanced(),
-		service.NewDurationField(etcdKeepAliveTimoutField).
+		service.NewDurationField(etcdKeepAliveTimeoutField).
 			Description("Time that the client waits for a response for the keep-alive probe. If the response is not received in this time, the connection is closed.").
 			Optional().
 			Default("1s").
@@ -53,61 +56,160 @@ func etcdClientFields() []*service.ConfigField {
 		service.NewTLSToggledField(etcdTlsField).
 			Description("Custom TLS settings can be used to override system defaults.").
 			Advanced(),
+		service.NewDurationField(etcdAutoSyncIntervalField).
+			Description("The interval to update endpoints with its latest members. 0 disables auto-sync. By default auto-sync is disabled.").
+			Optional(),
+		service.NewIntField(etcdMaxCallSendMsgSizeField).
+			Description("The client-side request send limit in bytes. If 0, it defaults to 2.0 MiB (2 * 1024 * 1024).").
+			Optional().
+			Advanced(),
+		service.NewIntField(etcdMaxCallRecvMsgSizeField).
+			Description("The client-side response receive limit. If 0, it defaults to math.MaxInt32.").
+			Optional().
+			Advanced(),
+		service.NewBoolField(etcdRejectOldClusterField).
+			Description("When set, will refuse to create a client against an outdated cluster.").
+			Default(false).
+			Advanced(),
+		service.NewBoolField(etcdPermitWithoutStreamField).
+			Description("When set, will allow client to send keepalive pings to server without any active streams (RPCs).").
+			Default(false).
+			Advanced(),
+		service.NewIntField(etcdMaxUnaryRetriesField).
+			Description("The maximum number of retries for unary RPCs.").
+			Optional().
+			Advanced(),
+		service.NewDurationField(etcdBackoffWaitBetweenField).
+			Description("The wait time before retrying an RPC.").
+			Optional().
+			Advanced(),
+		service.NewFloatField(etcdBackoffJitterFractionField).
+			Description("The jitter fraction to randomize backoff wait time.").
+			Optional().
+			Advanced(),
 	}
 }
 
-type etcdClient struct {
-	cli    *clientv3.Client
-	config *clientv3.Config
+func newEtcdClientFromConfig(ctx context.Context, cfg *clientv3.Config) (*clientv3.Client, error) {
+	if cfg == nil {
+		return nil, errors.New("etcd config cannot be nil")
+	}
 
-	logger *service.Logger
-}
+	cfg.Context = ctx
 
-func (e *etcdClient) Connect(ctx context.Context) error {
-	e.config.Context = ctx
-
-	client, err := clientv3.New(*e.config)
+	client, err := clientv3.New(*cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	e.cli = client
-
-	return nil
+	return client, nil
 }
 
-func (e *etcdClient) Close(_ context.Context) error {
-	return e.cli.Close()
-}
+func newEtcdConfigFromParsed(parsedConf *service.ParsedConfig) (*clientv3.Config, error) {
+	var cfg clientv3.Config
 
-func newEtcdConfigFromParsed(parsedConf *service.ParsedConfig, mgr *service.Resources) (*etcdClient, error) {
 	endpointStrs, err := parsedConf.FieldStringList(etcdEndpointsField)
 	if err != nil {
 		return nil, err
 	}
+	if len(endpointStrs) == 0 {
+		return nil, errors.New("must specify at least one URL")
+	}
+	for _, u := range endpointStrs {
+		for _, splitURL := range strings.Split(u, ",") {
+			if trimmed := strings.TrimSpace(splitURL); trimmed != "" {
+				cfg.Endpoints = append(cfg.Endpoints, trimmed)
+			}
+		}
+	}
 
-	dialTimeout, err := parsedConf.FieldDuration(etcdDialTimeoutField)
-	if err != nil {
+	if cfg.DialTimeout, err = parsedConf.FieldDuration(etcdDialTimeoutField); err != nil {
 		return nil, err
+	}
+
+	if cfg.DialKeepAliveTime, err = parsedConf.FieldDuration(etcdKeepAliveTimeField); err != nil {
+		return nil, err
+	}
+
+	if cfg.DialKeepAliveTimeout, err = parsedConf.FieldDuration(etcdKeepAliveTimeoutField); err != nil {
+		return nil, err
+	}
+
+	if parsedConf.Contains(etcdAutoSyncIntervalField) {
+		if cfg.AutoSyncInterval, err = parsedConf.FieldDuration(etcdAutoSyncIntervalField); err != nil {
+			return nil, err
+		}
+	}
+
+	if parsedConf.Contains(etcdMaxCallSendMsgSizeField) {
+		if cfg.MaxCallSendMsgSize, err = parsedConf.FieldInt(etcdMaxCallSendMsgSizeField); err != nil {
+			return nil, err
+		}
+	}
+
+	if parsedConf.Contains(etcdMaxCallRecvMsgSizeField) {
+		if cfg.MaxCallRecvMsgSize, err = parsedConf.FieldInt(etcdMaxCallRecvMsgSizeField); err != nil {
+			return nil, err
+		}
+	}
+
+	if cfg.RejectOldCluster, err = parsedConf.FieldBool(etcdRejectOldClusterField); err != nil {
+		return nil, err
+	}
+
+	if cfg.PermitWithoutStream, err = parsedConf.FieldBool(etcdPermitWithoutStreamField); err != nil {
+		return nil, err
+	}
+
+	if parsedConf.Contains(etcdMaxUnaryRetriesField) {
+		if maxUnaryRetries, err := parsedConf.FieldInt(etcdMaxUnaryRetriesField); err != nil {
+			return nil, err
+		} else {
+			cfg.MaxUnaryRetries = uint(maxUnaryRetries)
+		}
+	}
+
+	if parsedConf.Contains(etcdBackoffWaitBetweenField) {
+		if cfg.BackoffWaitBetween, err = parsedConf.FieldDuration(etcdBackoffWaitBetweenField); err != nil {
+			return nil, err
+		}
+	}
+
+	if parsedConf.Contains(etcdBackoffJitterFractionField) {
+		if backoffJitterFraction, err := parsedConf.FieldFloat(etcdBackoffJitterFractionField); err != nil {
+			return nil, err
+		} else {
+			cfg.BackoffJitterFraction = float64(backoffJitterFraction)
+		}
 	}
 
 	tlsConf, tlsEnabled, err := parsedConf.FieldTLSToggled(etcdTlsField)
 	if err != nil {
 		return nil, err
 	}
-	if !tlsEnabled {
-		tlsConf = nil
+
+	if tlsEnabled {
+		cfg.TLS = tlsConf
 	}
 
-	cfg := &clientv3.Config{
-		Endpoints:   endpointStrs,
-		DialTimeout: dialTimeout,
-		TLS:         tlsConf,
+	if parsedConf.Contains(etcdAuthField) {
+		var authEnabled bool
+		authConf := parsedConf.Namespace(etcdAuthField)
+		if authEnabled, err = authConf.FieldBool(etcdAuthEnabledField); err != nil {
+			return nil, err
+		}
+
+		if authEnabled {
+			if cfg.Username, err = authConf.FieldString(etcdAuthUsernameField); err != nil {
+				return nil, err
+			}
+			if cfg.Password, err = authConf.FieldString(etcdAuthPasswordField); err != nil {
+				return nil, err
+			}
+		}
+
 	}
 
-	return &etcdClient{
-		config: cfg,
-		logger: mgr.Logger(),
-	}, nil
+	return &cfg, nil
 
 }
