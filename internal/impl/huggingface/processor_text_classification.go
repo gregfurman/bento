@@ -3,6 +3,7 @@ package huggingface
 import (
 	"github.com/knights-analytics/hugot"
 	"github.com/knights-analytics/hugot/pipelines"
+	"github.com/knights-analytics/tokenizers"
 
 	"github.com/warpstreamlabs/bento/public/service"
 )
@@ -92,9 +93,17 @@ func newTextClassificationPipeline(conf *service.ParsedConfig, mgr *service.Reso
 		Options:      opts,
 	}
 
-	if p.pipeline, err = hugot.NewPipeline(p.session, cfg); err != nil {
+	pipeline, err := hugot.NewPipeline(p.session, cfg)
+	if err != nil {
 		return nil, err
 	}
+
+	pipeline.TokenizerOptions = []tokenizers.EncodeOption{
+		tokenizers.WithReturnAttentionMask(),
+		tokenizers.WithReturnTypeIDs(),
+	}
+
+	p.pipeline = pipeline
 
 	return p, nil
 }
