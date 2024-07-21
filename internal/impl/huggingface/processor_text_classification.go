@@ -39,7 +39,7 @@ Currently [only implemented](https://github.com/knights-analytics/hugot/tree/mai
 }
 
 func init() {
-	err := service.RegisterBatchProcessor("text_classifer", hugotTextClassificationConfigSpec(), newTextClassificationPipeline)
+	err := service.RegisterBatchProcessor("huggingface_text_classifer", hugotTextClassificationConfigSpec(), newTextClassificationPipeline)
 	if err != nil {
 		panic(err)
 	}

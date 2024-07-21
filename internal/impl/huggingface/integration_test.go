@@ -26,26 +26,26 @@ func TestIntegration_TextClassifier(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	session, err := hugot.NewSession(hugot.WithOnnxLibraryPath("/usr/local/lib/libonnxruntime.dylib"))
+	onnxLibPath := os.Getenv("ONNXRUNTIME_SHARED_LIB_PATH")
+
+	session, err := globalSession.NewSession(onnxLibPath)
 	require.NoError(t, err)
 
 	modelName := "KnightsAnalytics/distilbert-base-uncased-finetuned-sst-2-english"
 	modelPath, err := session.DownloadModel(modelName, tmpDir, hugot.NewDownloadOptions())
 	require.NoError(t, err)
 
-	assert.NoError(t, session.Destroy())
-
 	defer t.Cleanup(func() {
 		assert.NoError(t, os.RemoveAll(tmpDir))
 	})
 
 	template := fmt.Sprintf(`
-text_classifer:
+huggingface_text_classifer:
   pipeline_name: classify-incoming-data-1
-  onnx_library_path: /usr/local/lib/libonnxruntime.dylib
+  onnx_library_path: %s
   model_name: %s
   model_path: %s
-`, modelName, modelPath)
+`, onnxLibPath, modelName, modelPath)
 
 	b := service.NewStreamBuilder()
 	require.NoError(t, b.SetLoggerYAML("level: INFO"))

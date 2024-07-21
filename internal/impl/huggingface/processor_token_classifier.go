@@ -38,7 +38,7 @@ Currently [only implemented](https://github.com/knights-analytics/hugot/tree/mai
 }
 
 func init() {
-	err := service.RegisterBatchProcessor("token_classifer", hugotTokenClassificationConfigSpec(), newTokenClassificationPipeline)
+	err := service.RegisterBatchProcessor("huggingface_token_classifer", hugotTokenClassificationConfigSpec(), newTokenClassificationPipeline)
 	if err != nil {
 		panic(err)
 	}

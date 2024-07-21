@@ -33,7 +33,7 @@ Currently [only implemented](https://github.com/knights-analytics/hugot/tree/mai
 }
 
 func init() {
-	err := service.RegisterBatchProcessor("feature_extractor", hugotFeatureExtractionConfigSpec(), newFeatureExtractionipeline)
+	err := service.RegisterBatchProcessor("huggingface_feature_extractor", hugotFeatureExtractionConfigSpec(), newFeatureExtractionipeline)
 	if err != nil {
 		panic(err)
 	}
