@@ -22,9 +22,10 @@ DATE      := $(shell date +"%Y-%m-%dT%H:%M:%SZ")
 
 VER_FLAGS = -X main.Version=$(VERSION) -X main.DateBuilt=$(DATE)
 
-LD_FLAGS   ?= -w -s
-GO_FLAGS   ?=
-DOCS_FLAGS ?=
+LD_FLAGS   	?= -w -s
+CGO_LDFLAGS ?= 
+GO_FLAGS   	?=
+DOCS_FLAGS 	?=
 
 APPS = bento
 all: $(APPS)
@@ -62,6 +63,15 @@ $(PATHINSTSERVERLESS)/%: $(SOURCE_FILES)
 	@zip -m -j $@.zip $@
 
 $(SERVERLESS): %: $(PATHINSTSERVERLESS)/%
+
+HUGGINGBENTO = huggingbento
+hugging-bento: $(HUGGINGBENTO)
+
+$(PATHINSTBIN)/$(HUGGINGBENTO): $(SOURCE_FILES)
+	@CGO_ENABLED=1 \
+		go build $(GO_FLAGS) -tags "$(TAGS) NODOWNLOAD huggingbento" -ldflags "$(LD_FLAGS) $(VER_FLAGS)" -o $@ ./cmd/bento
+
+$(HUGGINGBENTO): %: $(PATHINSTBIN)/%
 
 docker-tags:
 	@echo "latest,$(VER_CUT),$(VER_MAJOR).$(VER_MINOR),$(VER_MAJOR)" > .tags

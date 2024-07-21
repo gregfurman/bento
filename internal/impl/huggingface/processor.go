@@ -1,8 +1,9 @@
+//go:build huggingbento
+
 package huggingface
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 
 	"github.com/knights-analytics/hugot"
@@ -86,25 +87,30 @@ func newPipelineProcessor(conf *service.ParsedConfig, mgr *service.Resources) (*
 
 //------------------------------------------------------------------------------
 
-func (p *pipelineProcessor) Process(ctx context.Context, msg *service.Message) (service.MessageBatch, error) {
-	msgBytes, err := msg.AsBytes()
+func (p *pipelineProcessor) ProcessBatch(ctx context.Context, batch service.MessageBatch) ([]service.MessageBatch, error) {
+	messages := make([]string, len(batch))
+
+	batch = batch.Copy()
+	for i, msg := range batch {
+		msgBytes, err := msg.AsBytes()
+		if err != nil {
+			return nil, err
+		}
+
+		messages[i] = string(msgBytes)
+	}
+
+	results, err := p.pipeline.Run(messages)
 	if err != nil {
 		return nil, err
 	}
 
-	var msgContents []string
-	if err := json.Unmarshal(msgBytes, &msgContents); err != nil {
-		return nil, err
+	resultsOut := results.GetOutput()
+	for i, msg := range batch {
+		msg.SetStructuredMut(resultsOut[i])
 	}
 
-	results, err := p.pipeline.Run(msgContents)
-	if err != nil {
-		return nil, err
-	}
-
-	msg.SetStructuredMut(results.GetOutput())
-
-	return service.MessageBatch{msg}, nil
+	return []service.MessageBatch{batch}, nil
 }
 
 func (p *pipelineProcessor) Close(context.Context) error {

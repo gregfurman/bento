@@ -1,3 +1,5 @@
+//go:build huggingbento
+
 package huggingface
 
 import (
@@ -37,7 +39,7 @@ Currently [only implemented](https://github.com/knights-analytics/hugot/tree/mai
 }
 
 func init() {
-	err := service.RegisterProcessor("text_classifer", hugotTextClassificationConfigSpec(), newTextClassificationPipeline)
+	err := service.RegisterBatchProcessor("text_classifer", hugotTextClassificationConfigSpec(), newTextClassificationPipeline)
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +77,7 @@ func getTextClassificationOptions(conf *service.ParsedConfig) ([]pipelines.Pipel
 
 //------------------------------------------------------------------------------
 
-func newTextClassificationPipeline(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
+func newTextClassificationPipeline(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchProcessor, error) {
 	p, err := newPipelineProcessor(conf, mgr)
 	if err != nil {
 		return nil, err

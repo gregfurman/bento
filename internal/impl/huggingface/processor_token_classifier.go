@@ -1,3 +1,5 @@
+//go:build huggingbento
+
 package huggingface
 
 import (
@@ -36,7 +38,7 @@ Currently [only implemented](https://github.com/knights-analytics/hugot/tree/mai
 }
 
 func init() {
-	err := service.RegisterProcessor("token_classifer", hugotTokenClassificationConfigSpec(), newTokenClassificationPipeline)
+	err := service.RegisterBatchProcessor("token_classifer", hugotTokenClassificationConfigSpec(), newTokenClassificationPipeline)
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +73,7 @@ func getTokenClassificationOptions(conf *service.ParsedConfig) ([]pipelines.Pipe
 
 //------------------------------------------------------------------------------
 
-func newTokenClassificationPipeline(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
+func newTokenClassificationPipeline(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchProcessor, error) {
 	p, err := newPipelineProcessor(conf, mgr)
 	if err != nil {
 		return nil, err

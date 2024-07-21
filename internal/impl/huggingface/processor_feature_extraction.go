@@ -1,3 +1,5 @@
+//go:build huggingbento
+
 package huggingface
 
 import (
@@ -31,7 +33,7 @@ Currently [only implemented](https://github.com/knights-analytics/hugot/tree/mai
 }
 
 func init() {
-	err := service.RegisterProcessor("feature_extractor", hugotFeatureExtractionConfigSpec(), newFeatureExtractionipeline)
+	err := service.RegisterBatchProcessor("feature_extractor", hugotFeatureExtractionConfigSpec(), newFeatureExtractionipeline)
 	if err != nil {
 		panic(err)
 	}
@@ -55,7 +57,7 @@ func getFeatureExtractionOptions(conf *service.ParsedConfig) ([]pipelines.Pipeli
 
 //------------------------------------------------------------------------------
 
-func newFeatureExtractionipeline(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
+func newFeatureExtractionipeline(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchProcessor, error) {
 	p, err := newPipelineProcessor(conf, mgr)
 	if err != nil {
 		return nil, err

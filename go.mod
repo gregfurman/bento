@@ -131,6 +131,7 @@ require (
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/xitongsys/parquet-go-source v0.0.0-20211228015320-b4f792c43cd0
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a
+	github.com/zeebo/assert v1.3.0
 	go.mongodb.org/mongo-driver v1.13.1
 	go.nanomsg.org/mangos/v3 v3.4.2
 	go.opentelemetry.io/otel v1.24.0
@@ -369,6 +370,4 @@ require (
 	modernc.org/token v1.1.0 // indirect
 )
 
-go 1.22
-
-toolchain go1.22.5
+go 1.21

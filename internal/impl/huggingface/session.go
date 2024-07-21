@@ -1,3 +1,5 @@
+//go:build huggingbento
+
 package huggingface
 
 import (
