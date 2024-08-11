@@ -7,6 +7,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"github.com/Masterminds/squirrel"
 	"go.uber.org/multierr"
+	"google.golang.org/api/option"
 
 	"github.com/warpstreamlabs/bento/public/service"
 )
@@ -27,6 +28,16 @@ func wrapBQClient(client *bigquery.Client, logger *service.Logger) bqClient {
 type wrappedBQClient struct {
 	wrapped *bigquery.Client
 	logger  *service.Logger
+}
+
+type gcpBQClientURL string
+
+func (g gcpBQClientURL) NewClient(ctx context.Context, projectID string, opts ...option.ClientOption) (*bigquery.Client, error) {
+	if g == "" {
+		return bigquery.NewClient(ctx, projectID, opts...)
+	}
+
+	return bigquery.NewClient(ctx, projectID, append(opts, option.WithoutAuthentication(), option.WithEndpoint(string(g)))...)
 }
 
 func (client *wrappedBQClient) RunQuery(ctx context.Context, options *bqQueryBuilderOptions) (bigqueryIterator, error) {

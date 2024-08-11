@@ -15,11 +15,11 @@ import (
 )
 
 type bigQuerySelectProcessorConfig struct {
-	project string
-
+	project     string
+	endpoint    string
 	queryParts  *bqQueryParts
-	jobLabels   map[string]string
 	argsMapping *bloblang.Executor
+	jobLabels   map[string]string
 }
 
 func bigQuerySelectProcessorConfigFromParsed(inConf *service.ParsedConfig) (conf bigQuerySelectProcessorConfig, err error) {
@@ -68,6 +68,12 @@ func bigQuerySelectProcessorConfigFromParsed(inConf *service.ParsedConfig) (conf
 		}
 	}
 
+	if endpoint, err := inConf.FieldURL("endpoint"); err != nil {
+		return conf, err
+	} else {
+		conf.endpoint = endpoint.String()
+	}
+
 	return
 }
 
@@ -78,6 +84,7 @@ func newBigQuerySelectProcessorConfig() *service.ConfigSpec {
 		Summary("Executes a `SELECT` query against BigQuery and replaces messages with the rows returned.").
 		Field(service.NewStringField("project").Description("GCP project where the query job will execute.")).
 		Field(service.NewStringField("table").Description("Fully-qualified BigQuery table name to query.").Example("bigquery-public-data.samples.shakespeare")).
+		Field(service.NewURLField("endpoint").Description("The endpoint used to create the BigQuery client.").Default("")).
 		Field(service.NewStringListField("columns").Description("A list of columns to query.")).
 		Field(service.NewStringField("where").
 			Description("An optional where clause to add. Placeholder arguments are populated with the `args_mapping` field. Placeholders should always be question marks (`?`).").
@@ -146,7 +153,8 @@ func newBigQuerySelectProcessor(inConf *service.ParsedConfig, options *bigQueryP
 
 	closeCtx, closeF := context.WithCancel(context.Background())
 
-	wrapped, err := bigquery.NewClient(closeCtx, conf.project, options.clientOptions...)
+	clientURL := gcpBQClientURL(conf.endpoint)
+	wrapped, err := clientURL.NewClient(closeCtx, conf.project, options.clientOptions...)
 	if err != nil {
 		closeF()
 		return nil, fmt.Errorf("failed to create bigquery client: %w", err)

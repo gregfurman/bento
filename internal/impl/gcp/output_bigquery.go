@@ -11,7 +11,6 @@ import (
 	"cloud.google.com/go/bigquery"
 	"golang.org/x/text/encoding/charmap"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 
 	"github.com/warpstreamlabs/bento/public/service"
 )
@@ -54,6 +53,7 @@ type gcpBigQueryOutputConfig struct {
 	Format              string
 	WriteDisposition    string
 	CreateDisposition   string
+	Endpoint            string
 	AutoDetect          bool
 	IgnoreUnknownValues bool
 	MaxBadRecords       int
@@ -100,16 +100,12 @@ func gcpBigQueryOutputConfigFromParsed(conf *service.ParsedConfig) (gconf gcpBig
 	if gconf.CSVOptions, err = gcpBigQueryCSVConfigFromParsed(conf.Namespace("csv")); err != nil {
 		return
 	}
-	return
-}
-
-type gcpBQClientURL string
-
-func (g gcpBQClientURL) NewClient(ctx context.Context, projectID string) (*bigquery.Client, error) {
-	if g == "" {
-		return bigquery.NewClient(ctx, projectID)
+	if endpoint, err := conf.FieldURL("endpoint"); err != nil {
+		return gconf, err
+	} else {
+		gconf.Endpoint = endpoint.String()
 	}
-	return bigquery.NewClient(ctx, projectID, option.WithoutAuthentication(), option.WithEndpoint(string(g)))
+	return
 }
 
 func gcpBigQueryConfig() *service.ConfigSpec {
@@ -156,6 +152,7 @@ For the CSV format when the field ` + "`csv.header`" + ` is specified a header r
 		Field(service.NewStringField("project").Description("The project ID of the dataset to insert data to. If not set, it will be inferred from the credentials or read from the GOOGLE_CLOUD_PROJECT environment variable.").Default("")).
 		Field(service.NewStringField("dataset").Description("The BigQuery Dataset ID.")).
 		Field(service.NewStringField("table").Description("The table to insert messages to.")).
+		Field(service.NewURLField("endpoint").Description("The endpoint used to create the BigQuery client.").Default("")).
 		Field(service.NewStringEnumField("format", string(bigquery.JSON), string(bigquery.CSV)).
 			Description("The format of each incoming message.").
 			Default(string(bigquery.JSON))).
@@ -252,8 +249,9 @@ func newGCPBigQueryOutput(
 	log *service.Logger,
 ) (*gcpBigQueryOutput, error) {
 	g := &gcpBigQueryOutput{
-		conf: conf,
-		log:  log,
+		conf:      conf,
+		log:       log,
+		clientURL: gcpBQClientURL(conf.Endpoint),
 	}
 
 	g.newLineBytes = []byte("\n")

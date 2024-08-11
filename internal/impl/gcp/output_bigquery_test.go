@@ -2,18 +2,21 @@ package gcp
 
 import (
 	"context"
-	"io"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"cloud.google.com/go/bigquery"
+	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 
 	"github.com/warpstreamlabs/bento/public/service"
+	"github.com/warpstreamlabs/bento/public/service/integration"
 )
 
 func gcpBigQueryConfFromYAML(t *testing.T, yamlStr string) gcpBigQueryOutputConfig {
@@ -26,6 +29,71 @@ func gcpBigQueryConfFromYAML(t *testing.T, yamlStr string) gcpBigQueryOutputConf
 	require.NoError(t, err)
 
 	return conf
+}
+
+func newBigQueryEmulator(t *testing.T) string {
+	integration.CheckSkip(t)
+	t.Parallel()
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err)
+
+	pool.MaxWait = 30 * time.Second
+	if deadline, ok := t.Deadline(); ok {
+		pool.MaxWait = time.Until(deadline) - 100*time.Millisecond
+	}
+
+	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository:   "ghcr.io/goccy/bigquery-emulator",
+		Tag:          "latest",
+		ExposedPorts: []string{"9050/tcp", "9060/tcp"},
+		Cmd:          []string{"--project", projectID, "--dataset", datasetID},
+		Platform:     "linux/x86_64",
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		assert.NoError(t, pool.Purge(resource))
+	})
+
+	url := "http://localhost:" + resource.GetPort("9050/tcp")
+	var client *bigquery.Client
+	err = pool.Retry(func() error {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFunc()
+
+		var retryErr error
+
+		client, retryErr = bigquery.NewClient(ctx, projectID, option.WithEndpoint(url), option.WithoutAuthentication())
+		if err != nil {
+			return retryErr
+		}
+
+		dataset := client.Dataset(datasetID)
+
+		sampleSchema := bigquery.Schema{
+			{Name: "what1", Type: bigquery.StringFieldType},
+			{Name: "what2", Type: bigquery.IntegerFieldType},
+			{Name: "what3", Type: bigquery.BooleanFieldType},
+		}
+
+		metaData := &bigquery.TableMetadata{
+			Schema:         sampleSchema,
+			ExpirationTime: time.Now().AddDate(1, 0, 0),
+		}
+
+		table := dataset.Table(tableID)
+		err := table.Create(context.Background(), metaData)
+		require.NoError(t, err)
+
+		return nil
+	})
+
+	require.NoError(t, err)
+
+	_ = resource.Expire(900)
+
+	return url
 }
 
 func TestNewGCPBigQueryOutputJsonNewLineOk(t *testing.T) {
@@ -177,12 +245,7 @@ func TestGCPBigQueryOutputConvertToIsoError(t *testing.T) {
 }
 
 func TestGCPBigQueryOutputCreateTableLoaderOk(t *testing.T) {
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, _ = w.Write([]byte(`{"id" : "dataset_meow"}`))
-		}),
-	)
-	defer server.Close()
+	url := newBigQueryEmulator(t)
 
 	// Setting non-default values
 	outputConfig := gcpBigQueryConfFromYAML(t, `
@@ -206,7 +269,7 @@ csv:
 	output, err := newGCPBigQueryOutput(outputConfig, nil)
 	require.NoError(t, err)
 
-	output.clientURL = gcpBQClientURL(server.URL)
+	output.clientURL = gcpBQClientURL(url)
 	err = output.Connect(context.Background())
 	defer output.Close(context.Background())
 	require.NoError(t, err)
@@ -238,32 +301,27 @@ csv:
 }
 
 func TestGCPBigQueryOutputDatasetDoNotExists(t *testing.T) {
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("{}"))
-		}),
-	)
-	defer server.Close()
+	url := newBigQueryEmulator(t)
 
 	config := gcpBigQueryConfFromYAML(t, `
 project: project_meow
-dataset: dataset_meow
+dataset: dataset_woof
 table: table_meow
 `)
 
 	output, err := newGCPBigQueryOutput(config, nil)
 	require.NoError(t, err)
 
-	output.clientURL = gcpBQClientURL(server.URL)
+	output.clientURL = gcpBQClientURL(url)
 
 	err = output.Connect(context.Background())
 	defer output.Close(context.Background())
 
-	require.EqualError(t, err, "dataset does not exist: dataset_meow")
+	require.EqualError(t, err, "dataset does not exist: dataset_woof")
 }
 
 func TestGCPBigQueryOutputDatasetDoNotExistsUnknownError(t *testing.T) {
+	// TODO: Not sure this is a worthwhile testcase?
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -294,43 +352,29 @@ table: table_meow
 }
 
 func TestGCPBigQueryOutputTableDoNotExists(t *testing.T) {
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/projects/project_meow/datasets/dataset_meow" {
-				_, _ = w.Write([]byte(`{"id" : "dataset_meow"}`))
-
-				return
-			}
-
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("{}"))
-		}),
-	)
-	defer server.Close()
+	url := newBigQueryEmulator(t)
 
 	config := gcpBigQueryConfFromYAML(t, `
 project: project_meow
 dataset: dataset_meow
-table: table_meow
+table: table_woof
 create_disposition: CREATE_NEVER
 `)
 
 	output, err := newGCPBigQueryOutput(config, nil)
 	require.NoError(t, err)
 
-	output.clientURL = gcpBQClientURL(server.URL)
+	output.clientURL = gcpBQClientURL(url)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Millisecond*200)
-	defer done()
-
-	err = output.Connect(ctx)
+	err = output.Connect(context.Background())
 	defer output.Close(context.Background())
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "table does not exist: table_meow")
+	require.Contains(t, err.Error(), "table does not exist: table_woof")
 }
 
 func TestGCPBigQueryOutputTableDoNotExistsUnknownError(t *testing.T) {
+	// TODO: here as well
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/projects/project_meow/datasets/dataset_meow" {
@@ -368,12 +412,7 @@ create_disposition: CREATE_NEVER
 }
 
 func TestGCPBigQueryOutputConnectOk(t *testing.T) {
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, _ = w.Write([]byte(`{"id" : "dataset_meow"}`))
-		}),
-	)
-	defer server.Close()
+	url := newBigQueryEmulator(t)
 
 	config := gcpBigQueryConfFromYAML(t, `
 project: project_meow
@@ -384,7 +423,7 @@ table: table_meow
 	output, err := newGCPBigQueryOutput(config, nil)
 	require.NoError(t, err)
 
-	output.clientURL = gcpBQClientURL(server.URL)
+	output.clientURL = gcpBQClientURL(url)
 
 	err = output.Connect(context.Background())
 	defer output.Close(context.Background())
@@ -393,19 +432,7 @@ table: table_meow
 }
 
 func TestGCPBigQueryOutputConnectWithoutTableOk(t *testing.T) {
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/projects/project_meow/datasets/dataset_meow" {
-				_, _ = w.Write([]byte(`{"id" : "dataset_meow"}`))
-
-				return
-			}
-
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("{}"))
-		}),
-	)
-	defer server.Close()
+	url := newBigQueryEmulator(t)
 
 	config := gcpBigQueryConfFromYAML(t, `
 project: project_meow
@@ -416,7 +443,7 @@ table: table_meow
 	output, err := newGCPBigQueryOutput(config, nil)
 	require.NoError(t, err)
 
-	output.clientURL = gcpBQClientURL(server.URL)
+	output.clientURL = gcpBQClientURL(url)
 
 	err = output.Connect(context.Background())
 	defer output.Close(context.Background())
@@ -425,42 +452,7 @@ table: table_meow
 }
 
 func TestGCPBigQueryOutputWriteOk(t *testing.T) {
-	serverCalledCount := 0
-	var body []byte
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serverCalledCount++
-
-			// checking dataset existence
-			if r.URL.Path == "/projects/project_meow/datasets/dataset_meow" {
-				_, _ = w.Write([]byte(`{"id" : "dataset_meow"}`))
-				return
-			}
-
-			// job execution called with job.Run()
-			if r.URL.Path == "/upload/bigquery/v2/projects/project_meow/jobs" {
-				var err error
-				body, err = io.ReadAll(r.Body)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-
-				_, _ = w.Write([]byte(`{"jobReference" : {"jobId" : "1"}}`))
-				return
-			}
-
-			// job status called with job.Wait()
-			if r.URL.Path == "/projects/project_meow/jobs/1" {
-				_, _ = w.Write([]byte(`{"status":{"state":"DONE"}}`))
-				return
-			}
-
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("{}"))
-		}),
-	)
-	defer server.Close()
+	url := newBigQueryEmulator(t)
 
 	config := gcpBigQueryConfFromYAML(t, `
 project: project_meow
@@ -471,7 +463,7 @@ table: table_meow
 	output, err := newGCPBigQueryOutput(config, nil)
 	require.NoError(t, err)
 
-	output.clientURL = gcpBQClientURL(server.URL)
+	output.clientURL = gcpBQClientURL(url)
 
 	err = output.Connect(context.Background())
 	defer output.Close(context.Background())
@@ -481,41 +473,50 @@ table: table_meow
 	err = output.WriteBatch(context.Background(), service.MessageBatch{
 		service.NewMessage([]byte(`{"what1":"meow1","what2":1,"what3":true}`)),
 		service.NewMessage([]byte(`{"what1":"meow2","what2":2,"what3":false}`)),
+		service.NewMessage([]byte(`{"what1":"meow3","what2":3,"what3":true}` + "\n" + `{"what1":"meow4","what2":4,"what3":false}`)),
+		service.NewMessage([]byte(`{"what1":"meow5","what2":5,"what3":true},{"what1":"meow6","what2":6,"what3":false}`)),
 	})
 	require.NoError(t, err)
 
-	require.NotNil(t, body)
+	dataset := output.client.Dataset(datasetID)
+	table := dataset.Table(tableID)
+	it := table.Read(context.Background())
+	require.NotNil(t, it)
 
-	require.Equal(t, 3, serverCalledCount)
+	var out []string
+	for {
+		var row []bigquery.Value
+		err := it.Next(&row)
+		if err == iterator.Done {
+			break
+		}
+		require.NoError(t, err)
+		content, err := json.Marshal(row)
+		require.NoError(t, err)
+		out = append(out, string(content))
+	}
 
-	require.True(t, strings.Contains(string(body), `{"what1":"meow1","what2":1,"what3":true}`+"\n"+`{"what1":"meow2","what2":2,"what3":false}`))
+	expectedOut := []string{
+		`["meow1",1,true]`, `["meow2",2,false]`,
+		`["meow3",3,true]`, `["meow4",4,false]`,
+		`["meow5",5,true]`, `["meow6",6,false]`}
+	require.NoError(t, err)
+	require.Equal(t, expectedOut, out)
 }
 
 func TestGCPBigQueryOutputWriteError(t *testing.T) {
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// checking dataset existence
-			if r.URL.Path == "/projects/project_meow/datasets/dataset_meow" {
-				_, _ = w.Write([]byte(`{"id" : "dataset_meow"}`))
-				return
-			}
+	url := newBigQueryEmulator(t)
 
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("{}"))
-		}),
-	)
-	defer server.Close()
-
-	config := gcpBigQueryConfFromYAML(t, `
-project: project_meow
-dataset: dataset_meow
-table: table_meow
-`)
-
+	tmpl := `
+project: "project_meow"
+dataset: "dataset_meow"
+table: "table_meow"
+`
+	config := gcpBigQueryConfFromYAML(t, tmpl)
 	output, err := newGCPBigQueryOutput(config, nil)
 	require.NoError(t, err)
 
-	output.clientURL = gcpBQClientURL(server.URL)
+	output.clientURL = gcpBQClientURL(url)
 
 	err = output.Connect(context.Background())
 	defer output.Close(context.Background())
@@ -523,8 +524,27 @@ table: table_meow
 	require.NoError(t, err)
 
 	err = output.WriteBatch(context.Background(), service.MessageBatch{
-		service.NewMessage([]byte(`{"what1":"meow1","what2":1,"what3":true}`)),
-		service.NewMessage([]byte(`{"what1":"meow2","what2":2,"what3":false}`)),
+		service.NewMessage([]byte(`{\"what1\":\"meow1\",\"what2\":1,\"what3\":true}`)),
+	})
+	require.Error(t, err)
+
+	err = output.WriteBatch(context.Background(), service.MessageBatch{
+		service.NewMessage([]byte(`[{"what1":"meow2","what2":2,"what3":false}]`)),
+	})
+	require.Error(t, err)
+
+	err = output.WriteBatch(context.Background(), service.MessageBatch{
+		service.NewMessage([]byte(`[ {"what1":"meow5","what2":5,"what3":true},` + "\n" + `{"what1":"meow6","what2":6,"what3":false}, ]`)),
+	})
+	require.Error(t, err)
+
+	err = output.WriteBatch(context.Background(), service.MessageBatch{
+		service.NewMessage([]byte(`\`)),
+	})
+	require.Error(t, err)
+
+	err = output.WriteBatch(context.Background(), service.MessageBatch{
+		service.NewMessage([]byte(`\"`)),
 	})
 	require.Error(t, err)
 }

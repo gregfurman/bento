@@ -28,6 +28,7 @@ label: ""
 gcp_bigquery_select:
   project: "" # No default (required)
   table: bigquery-public-data.samples.shakespeare # No default (required)
+  endpoint: ""
   columns: [] # No default (required)
   where: type = ? and created_at > ? # No default (optional)
   job_labels: {}
@@ -92,6 +93,14 @@ Type: `string`
 
 table: bigquery-public-data.samples.shakespeare
 ```
+
+### `endpoint`
+
+The endpoint used to create the BigQuery client.
+
+
+Type: `string`  
+Default: `""`  
 
 ### `columns`
 

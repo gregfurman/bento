@@ -17,6 +17,7 @@ import (
 
 type bigQuerySelectInputConfig struct {
 	project       string
+	endpoint      string
 	queryParts    *bqQueryParts
 	argsMapping   *bloblang.Executor
 	queryPriority bigquery.QueryPriority
@@ -73,6 +74,12 @@ func bigQuerySelectInputConfigFromParsed(inConf *service.ParsedConfig) (conf big
 		return
 	}
 
+	if endpoint, err := inConf.FieldURL("endpoint"); err != nil {
+		return conf, err
+	} else {
+		conf.endpoint = endpoint.String()
+	}
+
 	return
 }
 
@@ -85,6 +92,7 @@ func newBigQuerySelectInputConfig() *service.ConfigSpec {
 		Description(`Once the rows from the query are exhausted, this input shuts down, allowing the pipeline to gracefully terminate (or the next input in a [sequence](/docs/components/inputs/sequence) to execute).`).
 		Field(service.NewStringField("project").Description("GCP project where the query job will execute.")).
 		Field(service.NewStringField("table").Description("Fully-qualified BigQuery table name to query.").Example("bigquery-public-data.samples.shakespeare")).
+		Field(service.NewURLField("endpoint").Description("The endpoint used to create the BigQuery client.").Default("")).
 		Field(service.NewStringListField("columns").Description("A list of columns to query.")).
 		Field(service.NewStringField("where").
 			Description("An optional where clause to add. Placeholder arguments are populated with the `args_mapping` field. Placeholders should always be question marks (`?`).").
@@ -158,7 +166,8 @@ func (inp *bigQuerySelectInput) Connect(ctx context.Context) error {
 	jobctx, _ := inp.shutdownSig.SoftStopCtx(context.Background())
 
 	if inp.client == nil {
-		client, err := bigquery.NewClient(jobctx, inp.config.project)
+		clientURL := gcpBQClientURL(inp.config.endpoint)
+		client, err := clientURL.NewClient(jobctx, inp.config.project)
 		if err != nil {
 			return fmt.Errorf("failed to create bigquery client: %w", err)
 		}

@@ -38,6 +38,7 @@ output:
     project: ""
     dataset: "" # No default (required)
     table: "" # No default (required)
+    endpoint: ""
     format: NEWLINE_DELIMITED_JSON
     max_in_flight: 64
     job_labels: {}
@@ -62,6 +63,7 @@ output:
     project: ""
     dataset: "" # No default (required)
     table: "" # No default (required)
+    endpoint: ""
     format: NEWLINE_DELIMITED_JSON
     max_in_flight: 64
     write_disposition: WRITE_APPEND
@@ -152,6 +154,14 @@ The table to insert messages to.
 
 
 Type: `string`  
+
+### `endpoint`
+
+The endpoint used to create the BigQuery client.
+
+
+Type: `string`  
+Default: `""`  
 
 ### `format`
 
