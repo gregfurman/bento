@@ -49,6 +49,7 @@ import (
 	_ "github.com/warpstreamlabs/bento/public/components/splunk"
 	_ "github.com/warpstreamlabs/bento/public/components/sql"
 	_ "github.com/warpstreamlabs/bento/public/components/statsd"
+	_ "github.com/warpstreamlabs/bento/public/components/tokenizer"
 	_ "github.com/warpstreamlabs/bento/public/components/twitter"
 	_ "github.com/warpstreamlabs/bento/public/components/wasm"
 )
