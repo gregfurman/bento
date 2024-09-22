@@ -2,14 +2,11 @@ package io
 
 import (
 	"context"
-	"log"
 	"strconv"
-	"sync"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/warpstreamlabs/bento/internal/filepath"
 	"github.com/warpstreamlabs/bento/public/service"
-	"github.com/warpstreamlabs/bento/public/service/codec"
 )
 
 const (
@@ -54,17 +51,19 @@ input:
 		Fields(
 			service.NewStringListField(fileInputFieldPaths).
 				Description("A list of paths to consume sequentially. Glob patterns are supported, including super globs (double star)."),
+			service.NewAutoRetryNacksToggleField(),
 			service.NewStringField(fileWatchInputFieldEventsBufferSize).
 				Description("The size of the file-system watcher's channel buffer.").
 				Advanced().
 				Optional(),
 		)
+
 }
 
 func init() {
-	err := service.RegisterBatchInput("file_watch", fileInputSpec(),
+	err := service.RegisterBatchInput("file_watch", fileWatcherInputSpec(),
 		func(pConf *service.ParsedConfig, res *service.Resources) (service.BatchInput, error) {
-			r, err := fileConsumerFromParsed(pConf, res)
+			r, err := fileWatcherFromParsed(pConf, res)
 			if err != nil {
 				return nil, err
 			}
@@ -81,16 +80,16 @@ type fileWatcher struct {
 	log *service.Logger
 	nm  *service.Resources
 
-	paths       []string
-	scannerCtor codec.DeprecatedFallbackCodec
-	watcher     *fsnotify.Watcher
+	paths []string
+	// scannerCtor codec.DeprecatedFallbackCodec
+	watcher *fsnotify.Watcher
 
-	scannerMut  sync.Mutex
-	scannerInfo *scannerInfo
+	// scannerMut  sync.Mutex
+	// scannerInfo *scannerInfo
 
 	watcherChannelSize uint
 
-	delete bool
+	// delete bool
 }
 
 func fileWatcherFromParsed(conf *service.ParsedConfig, nm *service.Resources) (*fileWatcher, error) {
@@ -151,32 +150,33 @@ func (f *fileWatcher) ReadBatch(ctx context.Context) (service.MessageBatch, serv
 		Operation string `json:"operation"`
 	}
 
-	fileOperations := map[string]fsnotify.Op{
-		fsnotify.Create, fsnotify.Remove, fsnotify.Write, fsnotify.Chmod,
-	}
-
+	// fileOperations := []fsnotify.Op{
+	// 	fsnotify.Create, fsnotify.Remove, fsnotify.Write, fsnotify.Chmod,
+	// }
+	var batch service.MessageBatch
 	for {
 		select {
 		case event, ok := <-f.watcher.Events:
 			if !ok {
-				return nil, nil, service.ErrEndOfInput
+				return batch, func(ctx context.Context, err error) error {
+					return err
+				}, nil
 			}
+			msg := service.NewMessage(nil)
+			msg.SetStructuredMut(filesystemEvent{File: event.Name, Operation: event.Op.String()})
+			batch = append(batch, msg)
 
-			var batch service.MessageBatch
+			// log.Println("Moved or Deleted")
+			// for _, op := range fileOperations {
+			// 	if event.Op.Has(op) {
+			// op.String()
 
-			for _, op := range fileOperations {
-				if event.Op.Has(op) {
-					op.String()
-					msg := service.NewMessage(nil)
-					msg.SetStructuredMut(event)
-					batch = append(batch, msg)
-				}
-			}
+			// 	}
+			// }
 
-			log.Println("event:", event)
-			if event.Has(fsnotify.Write) {
-				log.Println("modified file:", event.Name)
-			}
+			// if event.Has(fsnotify.Write) {
+			// 	log.Println("modified file:", event.Name)
+			// }
 		case err, ok := <-f.watcher.Errors:
 			if !ok {
 				return nil, nil, err
@@ -184,9 +184,9 @@ func (f *fileWatcher) ReadBatch(ctx context.Context) (service.MessageBatch, serv
 		}
 	}
 
-	return parts, func(rctx context.Context, res error) error {
-		return codecAckFn(rctx, res)
-	}, nil
+	// return parts, func(rctx context.Context, res error) error {
+	// 	return codecAckFn(rctx, res)
+	// }, nil
 
 }
 
