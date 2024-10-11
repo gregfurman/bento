@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -89,6 +90,7 @@ Finally, it's also possible to specify an explicit offset to consume from by add
 			Description("Determines whether to consume from the oldest available offset, otherwise messages are consumed from the latest offset. The setting is applied when creating a new consumer group or the saved offset no longer exists.").
 			Default(true).
 			Advanced()).
+		Field(kafkaConsumerConfigField().Optional()).
 		Field(service.NewTLSToggledField("tls")).
 		Field(saslField()).
 		Field(service.NewBoolField("multi_header").Description("Decode headers into lists to allow handling of multiple values with the same key").Default(false).Advanced()).
@@ -105,6 +107,48 @@ root = if $has_topic_partitions {
   }
 }
 `)
+}
+
+func kafkaConsumerConfigField() *service.ConfigField {
+	return service.NewObjectField("consumer_config",
+		service.NewBoolField("enabled").
+			Description("Whether custom Kafka consumer configuration is enabled, with `franz_kafka` defaults used otherwise."),
+		service.NewStringListField("group_balancers").
+			Description(`
+Balancers sets the group balancers to use for dividing topic partitions among group members, overriding the current default `+"`[cooperative-sticky]`"+`. This option is equivalent to Kafka's partition.assignment.strategies option.
+
+For balancing, Kafka chooses the first protocol that all group members agree to support.
+
+Note that if you opt into `+"`cooperative-sticky`"+` rebalancing, cooperative group balancing is incompatible with eager (classical) rebalancing and requires a careful rollout strategy.
+`).
+			Default([]string{"roundrobin"}).
+			Advanced(),
+		service.NewDurationField("metadata_max_age").
+			Description("This sets the maximum age for the client's cached metadata, overriding the default 5m, to allow detection of new topics, partitions, etc.").
+			Default("60s").
+			Advanced(),
+		service.NewIntField("fetch_max_bytes").
+			Description("This sets the maximum amount of bytes a broker will try to send during a fetch, overriding the default `50MiB`. Note that brokers may not obey this limit if it has records larger than this limit. Also note that this client sends a fetch to each broker concurrently, meaning the client will buffer up to `<brokers * max bytes>` worth of memory.").
+			Default(100_000_000).
+			Advanced(),
+		service.NewIntField("fetch_max_partition_bytes").
+			Description("FetchMaxPartitionBytes sets the maximum amount of bytes that will be consumed for a single partition in a fetch request, overriding the default 1MiB. Note that if a single batch is larger than this number, that batch will still be returned so the client can make progress.").
+			Default(50_000_000).
+			Advanced(),
+		service.NewDurationField("fetch_max_wait").
+			Description("This sets the maximum amount of time a broker will wait for a fetch response to hit the minimum number of required bytes before returning, overriding the default 5s.").
+			Default("5s").
+			Advanced(),
+		service.NewIntField("preferring_lag").
+			Description(`
+This allows you to re-order partitions before they are fetched, given each partition's current lag.
+
+By default, the client rotates partitions fetched by one after every fetch request. Kafka answers fetch requests in the order that partitions are requested, filling the fetch response until`+"`fetch_max_bytes`"+` and `+"`fetch_max_partition_bytes`"+` are hit. All partitions eventually rotate to the front, ensuring no partition is starved.
+
+With this option, you can return topic order and per-topic partition ordering. These orders will sort to the front (first by topic, then by partition). Any topic or partitions that you do not return are added to the end, preserving their original ordering.`).
+			Default(50).
+			Advanced(),
+	).Description("The Kafka consumer client's configuration, primarily used for performance tuning. When enabled, sub-fields default set to the recommended values in the [tuning for performance docs](https://docs.warpstream.com/warpstream/byoc/configure-kafka-client/tuning-for-performance#consumer-configuration).")
 }
 
 func init() {
@@ -143,6 +187,13 @@ type franzKafkaReader struct {
 	regexPattern    bool
 	multiHeader     bool
 	batchPolicy     service.BatchPolicy
+
+	metadataMaxAge         time.Duration
+	fetchMaxBytes          int
+	fetchMaxPartitionBytes int
+	fetchMaxWait           time.Duration
+	preferringLagFn        kgo.PreferLagFn
+	balancers              []kgo.GroupBalancer
 
 	batchChan atomic.Value
 	res       *service.Resources
@@ -227,6 +278,64 @@ func newFranzKafkaReaderFromConfig(conf *service.ParsedConfig, res *service.Reso
 		return nil, err
 	}
 
+	consumerConf := conf.Namespace("consumer_config")
+
+	var consumerConfEnabled bool
+	if consumerConfEnabled, err = consumerConf.FieldBool("enabled"); err != nil {
+		return nil, err
+	}
+
+	if consumerConfEnabled {
+		if f.metadataMaxAge, err = consumerConf.FieldDuration("metadata_max_age"); err != nil {
+			return nil, err
+		}
+
+		if f.fetchMaxBytes, err = consumerConf.FieldInt("fetch_max_bytes"); err != nil {
+			return nil, err
+		}
+		if f.fetchMaxPartitionBytes, err = consumerConf.FieldInt("fetch_max_partition_bytes"); err != nil {
+			return nil, err
+		}
+		if f.fetchMaxWait, err = consumerConf.FieldDuration("fetch_max_wait"); err != nil {
+			return nil, err
+		}
+
+		var preferring_lag int
+		if preferring_lag, err = consumerConf.FieldInt("preferring_lag"); err != nil {
+			return nil, err
+		} else if preferring_lag > 0 {
+			f.preferringLagFn = kgo.PreferLagAt(int64(preferring_lag))
+		}
+
+		var balancers []string
+		if balancers, err = consumerConf.FieldStringList("group_balancers"); err != nil {
+			return nil, err
+		}
+
+		if len(balancers) > 0 {
+			seen := make(map[string]struct{})
+			for _, b := range balancers {
+				if _, ok := seen[b]; ok {
+					res.Logger().Warnf("Skipping duplicate group_balancer field %s", b)
+					continue
+				}
+
+				switch b {
+				case "roundrobin":
+					f.balancers = append(f.balancers, kgo.RoundRobinBalancer())
+				case "range":
+					f.balancers = append(f.balancers, kgo.RangeBalancer())
+				case "sticky":
+					f.balancers = append(f.balancers, kgo.StickyBalancer())
+				case "cooperative-sticky":
+					f.balancers = append(f.balancers, kgo.CooperativeStickyBalancer())
+				default:
+					return nil, fmt.Errorf("undefined group_balancer option: [%s]", b)
+				}
+			}
+		}
+
+	}
 	if f.batchPolicy, err = conf.FieldBatchPolicy("batching"); err != nil {
 		return nil, err
 	}
@@ -616,6 +725,13 @@ func (f *franzKafkaReader) Connect(ctx context.Context) error {
 		kgo.ConsumerGroup(f.consumerGroup),
 		kgo.ClientID(f.clientID),
 		kgo.Rack(f.rackID),
+
+		kgo.MetadataMaxAge(f.metadataMaxAge),
+		kgo.FetchMaxBytes(int32(f.fetchMaxBytes)),
+		kgo.FetchMaxPartitionBytes(int32(f.fetchMaxPartitionBytes)),
+		kgo.FetchMaxWait(f.fetchMaxWait),
+		kgo.ConsumePreferringLagFn(f.preferringLagFn),
+		kgo.Balancers(f.balancers...),
 	}
 
 	if f.consumerGroup != "" {

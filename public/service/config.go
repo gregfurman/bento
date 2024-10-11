@@ -67,6 +67,14 @@ func NewStringEnumField(name string, options ...string) *ConfigField {
 	}
 }
 
+// NewStringListField describes a new config field consisting of a list of
+// strings that can only be one of a discrete list of values.
+func NewStringEnumListField(name string, options ...string) *ConfigField {
+	return &ConfigField{
+		field: docs.FieldString(name, "").HasOptions(options...).Array(),
+	}
+}
+
 // NewStringAnnotatedEnumField describes a new string type config field that can
 // have one of a discrete list of values, where each value must be accompanied
 // by a description that annotates its behaviour in the documentation.

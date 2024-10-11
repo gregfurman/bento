@@ -40,6 +40,8 @@ input:
     regexp_topics: false
     consumer_group: "" # No default (optional)
     auto_replay_nacks: true
+    consumer_config:
+      enabled: false # No default (required)
 ```
 
 </TabItem>
@@ -60,6 +62,15 @@ input:
     auto_replay_nacks: true
     commit_period: 5s
     start_from_oldest: true
+    consumer_config:
+      enabled: false # No default (required)
+      group_balancers:
+        - roundrobin
+      metadata_max_age: 60s
+      fetch_max_bytes: 100000000
+      fetch_max_partition_bytes: 50000000
+      fetch_max_wait: 5s
+      preferring_lag: 50
     tls:
       enabled: false
       skip_cert_verify: false
@@ -220,6 +231,76 @@ Determines whether to consume from the oldest available offset, otherwise messag
 
 Type: `bool`  
 Default: `true`  
+
+### `consumer_config`
+
+The Kafka consumer client's configuration, primarily used for performance tuning. When enabled, sub-fields default set to the recommended values in the [tuning for performance docs](https://docs.warpstream.com/warpstream/byoc/configure-kafka-client/tuning-for-performance#consumer-configuration).
+
+
+Type: `object`  
+
+### `consumer_config.enabled`
+
+Whether custom Kafka consumer configuration is enabled, with `franz_kafka` defaults used otherwise.
+
+
+Type: `bool`  
+
+### `consumer_config.group_balancers`
+
+Balancers sets the group balancers to use for dividing topic partitions among group members, overriding the current default `[cooperative-sticky]`. This option is equivalent to Kafka's partition.assignment.strategies option.
+
+For balancing, Kafka chooses the first protocol that all group members agree to support.
+
+Note that if you opt into `cooperative-sticky` rebalancing, cooperative group balancing is incompatible with eager (classical) rebalancing and requires a careful rollout strategy.
+
+
+Type: `array`  
+Default: `["roundrobin"]`  
+
+### `consumer_config.metadata_max_age`
+
+This sets the maximum age for the client's cached metadata, overriding the default 5m, to allow detection of new topics, partitions, etc.
+
+
+Type: `string`  
+Default: `"60s"`  
+
+### `consumer_config.fetch_max_bytes`
+
+This sets the maximum amount of bytes a broker will try to send during a fetch, overriding the default `50MiB`. Note that brokers may not obey this limit if it has records larger than this limit. Also note that this client sends a fetch to each broker concurrently, meaning the client will buffer up to `<brokers * max bytes>` worth of memory.
+
+
+Type: `int`  
+Default: `100000000`  
+
+### `consumer_config.fetch_max_partition_bytes`
+
+FetchMaxPartitionBytes sets the maximum amount of bytes that will be consumed for a single partition in a fetch request, overriding the default 1MiB. Note that if a single batch is larger than this number, that batch will still be returned so the client can make progress.
+
+
+Type: `int`  
+Default: `50000000`  
+
+### `consumer_config.fetch_max_wait`
+
+This sets the maximum amount of time a broker will wait for a fetch response to hit the minimum number of required bytes before returning, overriding the default 5s.
+
+
+Type: `string`  
+Default: `"5s"`  
+
+### `consumer_config.preferring_lag`
+
+This allows you to re-order partitions before they are fetched, given each partition's current lag.
+
+By default, the client rotates partitions fetched by one after every fetch request. Kafka answers fetch requests in the order that partitions are requested, filling the fetch response until`fetch_max_bytes` and `fetch_max_partition_bytes` are hit. All partitions eventually rotate to the front, ensuring no partition is starved.
+
+With this option, you can return topic order and per-topic partition ordering. These orders will sort to the front (first by topic, then by partition). Any topic or partitions that you do not return are added to the end, preserving their original ordering.
+
+
+Type: `int`  
+Default: `50`  
 
 ### `tls`
 
