@@ -369,3 +369,53 @@ func TestParquetEncodeProcessor(t *testing.T) {
 		assert.JSONEq(t, string(expectedBytes), string(actualBytes))
 	})
 }
+
+func TestEncodingFromConfig(t *testing.T) {
+	tests := []struct {
+		config   string
+		expected parquet.Node
+	}{
+		{
+			config: `
+schema:
+  - name: map
+    type: MAP
+    fields:
+      - { name: key, type: BYTE_ARRAY }
+      - { name: value, type: FLOAT }
+`,
+			expected: parquet.Group{
+				"map": parquet.Map(parquet.Leaf(parquet.ByteArrayType), parquet.Leaf(parquet.FloatType)),
+			},
+		},
+		{
+			config: `
+schema:
+  - name: map
+    type: MAP
+    fields:
+      - { name: key, type: BYTE_ARRAY }
+      - name: value
+        type: MAP
+        fields:
+          - { name: key, type: INT64 }
+          - { name: value, type: UTF8 }
+
+`,
+			expected: parquet.Group{
+				"map": parquet.Map(parquet.Leaf(parquet.ByteArrayType), parquet.Map(parquet.Int(64), parquet.String())),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		encodeConf, err := parquetEncodeProcessorConfig().ParseYAML(tt.config, nil)
+		require.NoError(t, err)
+
+		encodeProc, err := newParquetEncodeProcessorFromConfig(encodeConf, nil)
+		require.NoError(t, err)
+
+		schema := parquet.NewSchema("", tt.expected)
+		require.Equal(t, schema.String(), encodeProc.schema.String())
+	}
+}

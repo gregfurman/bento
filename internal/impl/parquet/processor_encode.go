@@ -100,45 +100,122 @@ var plainEncodingFn encodingFn = func(n parquet.Node) parquet.Node {
 	return parquet.Encoded(n, &parquet.Plain)
 }
 
+func createNode(name, typeStr string, encodingFn encodingFn) (parquet.Node, error) {
+	var n parquet.Node
+	switch typeStr {
+	case "BOOLEAN":
+		n = parquet.Leaf(parquet.BooleanType)
+	case "INT32":
+		n = parquet.Int(32)
+	case "INT64":
+		n = parquet.Int(64)
+	case "FLOAT":
+		n = parquet.Leaf(parquet.FloatType)
+	case "DOUBLE":
+		n = parquet.Leaf(parquet.DoubleType)
+	case "BYTE_ARRAY":
+		n = parquet.Leaf(parquet.ByteArrayType)
+	case "UTF8":
+		n = parquet.String()
+	default:
+		return nil, fmt.Errorf("field %v type of '%v' not recognised", name, typeStr)
+
+	}
+	return encodingFn(n), nil
+}
+
+func createMapNode(name string, encodingFn encodingFn, mapFields []*service.ParsedConfig) (parquet.Node, error) {
+	if len(mapFields) != 2 {
+		return nil, fmt.Errorf("field %v of type MAP must have exactly two fields", name)
+	}
+
+	var (
+		// The key field encodes the map's key type. This field must have repetition required and must always be present.
+		keyField *service.ParsedConfig
+		// The value field encodes the map's value type and repetition. This field can be required, optional, or omitted.
+		valueField *service.ParsedConfig
+	)
+
+	for _, field := range mapFields {
+		colName, err := field.FieldString("name")
+		if err != nil {
+			return nil, err
+		}
+		switch colName {
+		case "key":
+			keyField = field
+		case "value":
+			valueField = field
+		default:
+			return nil, fmt.Errorf("invalid naming of field %s of MAP can only be named 'key' or 'value'", colName)
+		}
+	}
+
+	// TODO: Should we allow empty valueField types given the parquet spec?
+	if keyField == nil || valueField == nil {
+		return nil, fmt.Errorf("failed to parse field %s required required 'key' and 'value' fields from MAP config", name)
+	}
+
+	keyNode, err := parquetGroupFromConfig([]*service.ParsedConfig{keyField}, encodingFn)
+	if err != nil {
+		return nil, err
+	}
+
+	if !keyNode.Required() {
+		return nil, fmt.Errorf("cannot create an optional 'key' node for type MAP %s, must be required", name)
+	}
+
+	valueNode, err := parquetGroupFromConfig([]*service.ParsedConfig{valueField}, encodingFn)
+	if err != nil {
+		return nil, err
+	}
+
+	return parquet.Map(keyNode["key"], valueNode["value"]), nil
+}
+
 func parquetGroupFromConfig(columnConfs []*service.ParsedConfig, encodingFn encodingFn) (parquet.Group, error) {
 	groupNode := parquet.Group{}
 
 	for _, colConf := range columnConfs {
 		var n parquet.Node
+		var typeStr string
 
 		name, err := colConf.FieldString("name")
 		if err != nil {
 			return nil, err
 		}
 
-		if childColumns, _ := colConf.FieldAnyList("fields"); len(childColumns) > 0 {
-			if n, err = parquetGroupFromConfig(childColumns, encodingFn); err != nil {
-				return nil, err
-			}
-		} else {
-			typeStr, err := colConf.FieldString("type")
+		hasType := colConf.Contains("type")
+		childColumns, _ := colConf.FieldAnyList("fields")
+
+		isMap := hasType && len(childColumns) == 2
+		isNested := !hasType && len(childColumns) > 0
+		isTerminal := hasType && len(childColumns) == 0
+
+		if isMap || isTerminal {
+			typeStr, err = colConf.FieldString("type")
 			if err != nil {
 				return nil, err
 			}
-			switch typeStr {
-			case "BOOLEAN":
-				n = parquet.Leaf(parquet.BooleanType)
-			case "INT32":
-				n = parquet.Int(32)
-			case "INT64":
-				n = parquet.Int(64)
-			case "FLOAT":
-				n = parquet.Leaf(parquet.FloatType)
-			case "DOUBLE":
-				n = parquet.Leaf(parquet.DoubleType)
-			case "BYTE_ARRAY":
-				n = parquet.Leaf(parquet.ByteArrayType)
-			case "UTF8":
-				n = parquet.String()
-			default:
-				return nil, fmt.Errorf("field %v type of '%v' not recognised", name, typeStr)
+		}
+
+		switch {
+		case isNested:
+			if n, err = parquetGroupFromConfig(childColumns, encodingFn); err != nil {
+				return nil, err
 			}
-			n = encodingFn(n)
+		case isTerminal:
+			if n, err = createNode(name, typeStr, encodingFn); err != nil {
+				return nil, err
+			}
+		case isMap:
+			if typeStr != "MAP" {
+				return nil, fmt.Errorf("invalid field %v of type %s: only a MAP can have child fields", name, typeStr)
+			}
+
+			if n, err = createMapNode(name, encodingFn, childColumns); err != nil {
+				return nil, err
+			}
 		}
 
 		repeated, _ := colConf.FieldBool("repeated")
