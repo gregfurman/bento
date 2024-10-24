@@ -381,11 +381,11 @@ schema:
   - name: map
     type: MAP
     fields:
-      - { name: key, type: BYTE_ARRAY }
+      - { name: key, type: UTF8 }
       - { name: value, type: FLOAT }
 `,
 			expected: parquet.Group{
-				"map": parquet.Map(parquet.Leaf(parquet.ByteArrayType), parquet.Leaf(parquet.FloatType)),
+				"map": parquet.Map(parquet.String(), parquet.Leaf(parquet.FloatType)),
 			},
 		},
 		{
@@ -394,16 +394,16 @@ schema:
   - name: map
     type: MAP
     fields:
-      - { name: key, type: BYTE_ARRAY }
+      - { name: key, type: UTF8 }
       - name: value
         type: MAP
         fields:
           - { name: key, type: INT64 }
-          - { name: value, type: UTF8 }
+          - { name: value, type: BYTE_ARRAY }
 
 `,
 			expected: parquet.Group{
-				"map": parquet.Map(parquet.Leaf(parquet.ByteArrayType), parquet.Map(parquet.Int(64), parquet.String())),
+				"map": parquet.Map(parquet.String(), parquet.Map(parquet.Int(64), parquet.Leaf(parquet.ByteArrayType))),
 			},
 		},
 	}

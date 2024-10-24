@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/parquet-go/parquet-go"
 	"github.com/parquet-go/parquet-go/compress"
@@ -90,153 +91,6 @@ func parquetSchemaConfig() *service.ConfigField {
 	).Description("Parquet schema.")
 }
 
-type encodingFn func(n parquet.Node) parquet.Node
-
-var defaultEncodingFn encodingFn = func(n parquet.Node) parquet.Node {
-	return n
-}
-
-var plainEncodingFn encodingFn = func(n parquet.Node) parquet.Node {
-	return parquet.Encoded(n, &parquet.Plain)
-}
-
-func createNode(name, typeStr string, encodingFn encodingFn) (parquet.Node, error) {
-	var n parquet.Node
-	switch typeStr {
-	case "BOOLEAN":
-		n = parquet.Leaf(parquet.BooleanType)
-	case "INT32":
-		n = parquet.Int(32)
-	case "INT64":
-		n = parquet.Int(64)
-	case "FLOAT":
-		n = parquet.Leaf(parquet.FloatType)
-	case "DOUBLE":
-		n = parquet.Leaf(parquet.DoubleType)
-	case "BYTE_ARRAY":
-		n = parquet.Leaf(parquet.ByteArrayType)
-	case "UTF8":
-		n = parquet.String()
-	default:
-		return nil, fmt.Errorf("field %v type of '%v' not recognised", name, typeStr)
-
-	}
-	return encodingFn(n), nil
-}
-
-func createMapNode(name string, encodingFn encodingFn, mapFields []*service.ParsedConfig) (parquet.Node, error) {
-	if len(mapFields) != 2 {
-		return nil, fmt.Errorf("field %v of type MAP must have exactly two fields", name)
-	}
-
-	var (
-		// The key field encodes the map's key type. This field must have repetition required and must always be present.
-		keyField *service.ParsedConfig
-		// The value field encodes the map's value type and repetition. This field can be required, optional, or omitted.
-		valueField *service.ParsedConfig
-	)
-
-	for _, field := range mapFields {
-		colName, err := field.FieldString("name")
-		if err != nil {
-			return nil, err
-		}
-		switch colName {
-		case "key":
-			keyField = field
-		case "value":
-			valueField = field
-		default:
-			return nil, fmt.Errorf("invalid naming of field %s of MAP can only be named 'key' or 'value'", colName)
-		}
-	}
-
-	// TODO: Should we allow empty valueField types given the parquet spec?
-	if keyField == nil || valueField == nil {
-		return nil, fmt.Errorf("failed to parse field %s required required 'key' and 'value' fields from MAP config", name)
-	}
-
-	keyNode, err := parquetGroupFromConfig([]*service.ParsedConfig{keyField}, encodingFn)
-	if err != nil {
-		return nil, err
-	}
-
-	if !keyNode.Required() {
-		return nil, fmt.Errorf("cannot create an optional 'key' node for type MAP %s, must be required", name)
-	}
-
-	valueNode, err := parquetGroupFromConfig([]*service.ParsedConfig{valueField}, encodingFn)
-	if err != nil {
-		return nil, err
-	}
-
-	return parquet.Map(keyNode["key"], valueNode["value"]), nil
-}
-
-func parquetGroupFromConfig(columnConfs []*service.ParsedConfig, encodingFn encodingFn) (parquet.Group, error) {
-	groupNode := parquet.Group{}
-
-	for _, colConf := range columnConfs {
-		var n parquet.Node
-		var typeStr string
-
-		name, err := colConf.FieldString("name")
-		if err != nil {
-			return nil, err
-		}
-
-		hasType := colConf.Contains("type")
-		childColumns, _ := colConf.FieldAnyList("fields")
-
-		isMap := hasType && len(childColumns) == 2
-		isNested := !hasType && len(childColumns) > 0
-		isTerminal := hasType && len(childColumns) == 0
-
-		if isMap || isTerminal {
-			typeStr, err = colConf.FieldString("type")
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		switch {
-		case isNested:
-			if n, err = parquetGroupFromConfig(childColumns, encodingFn); err != nil {
-				return nil, err
-			}
-		case isTerminal:
-			if n, err = createNode(name, typeStr, encodingFn); err != nil {
-				return nil, err
-			}
-		case isMap:
-			if typeStr != "MAP" {
-				return nil, fmt.Errorf("invalid field %v of type %s: only a MAP can have child fields", name, typeStr)
-			}
-
-			if n, err = createMapNode(name, encodingFn, childColumns); err != nil {
-				return nil, err
-			}
-		}
-
-		repeated, _ := colConf.FieldBool("repeated")
-		if repeated {
-			n = parquet.Repeated(n)
-		}
-
-		optional, _ := colConf.FieldBool("optional")
-		if optional {
-			if repeated {
-				return nil, fmt.Errorf("column %v cannot be both repeated and optional", name)
-			}
-			n = parquet.Optional(n)
-		}
-
-		groupNode[name] = n
-	}
-
-	return groupNode, nil
-}
-
 //------------------------------------------------------------------------------
 
 func newParquetEncodeProcessorFromConfig(conf *service.ParsedConfig, logger *service.Logger) (*parquetEncodeProcessor, error) {
@@ -245,31 +99,31 @@ func newParquetEncodeProcessorFromConfig(conf *service.ParsedConfig, logger *ser
 		return nil, err
 	}
 
-	customEncoding, err := conf.FieldString("default_encoding")
-	if err != nil {
-		return nil, err
-	}
-	var encoding encodingFn
-	switch customEncoding {
-	case "PLAIN":
-		encoding = plainEncodingFn
-	default:
-		encoding = defaultEncodingFn
-	}
-
-	node, err := parquetGroupFromConfig(schemaConfs, encoding)
+	_, err = conf.FieldString("default_encoding")
 	if err != nil {
 		return nil, err
 	}
 
-	schema := parquet.NewSchema("", node)
-	compressStr, err := conf.FieldString("default_compression")
+	// encoding := ""
+	// if encodingStr == "PLAIN" {
+	// 	encoding = "plain"
+	// }
+
+	compression, err := conf.FieldString("default_compression")
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: Encoding should be done on leaf nodes
+	concreteSchemaType, err := createStructType(schemaConfs, "", "")
+	if err != nil {
+		return nil, err
+	}
+	concreteSchemaValue := reflect.New(concreteSchemaType).Elem()
+	schema := parquet.SchemaOf(concreteSchemaValue.Interface())
 
 	var compressDefault compress.Codec
-	switch compressStr {
+	switch compression {
 	case "uncompressed":
 		compressDefault = &parquet.Uncompressed
 	case "snappy":
@@ -283,8 +137,9 @@ func newParquetEncodeProcessorFromConfig(conf *service.ParsedConfig, logger *ser
 	case "lz4raw":
 		compressDefault = &parquet.Lz4Raw
 	default:
-		return nil, fmt.Errorf("default_compression type %v not recognised", compressStr)
+		return nil, fmt.Errorf("default_compression type %v not recognised", compression)
 	}
+
 	return newParquetEncodeProcessor(logger, schema, compressDefault)
 }
 
