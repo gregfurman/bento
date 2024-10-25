@@ -14,7 +14,7 @@ func arrowProcessorConfigSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Beta().
 		Categories("Parsing").
-		Summary(`Performs Avro based operations on messages based on a schema.`).Field(schemaConfig())
+		Summary(`Performs Avro based operations on messages based on a schema.`).Field(schemaConfig()).Field(service.NewStringEnumField("format", "arrow", "parquet"))
 
 }
 
@@ -37,13 +37,6 @@ func schemaConfig() *service.ConfigField {
 		}),
 	).Description("Parquet schema.")
 }
-
-// func init() {
-// 	err := service.RegisterProcessor("arrow", arrowProcessorConfigSpec(), newArrowFromConifg)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// }
 
 func init() {
 	err := service.RegisterBatchProcessor(
@@ -72,6 +65,21 @@ func newArrowFromConifg(conf *service.ParsedConfig, mgr *service.Resources) (*ar
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct Arrow schema from config: %w", err)
 	}
+
+	// TODO: Handle parquet format
+	_, err = conf.FieldString("format")
+	if err != nil {
+		return nil, err
+	}
+
+	// switch format {
+	// case "parquet":
+	// 	parquetSchema, err := pqarrow.ToParquet(arrowSchema, nil, pqarrow.DefaultWriterProps())
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to convert arrow to parquet schema: %w", err)
+	// 	}
+
+	// }
 
 	return &arrowProcessor{
 		schema: arrowSchema,
