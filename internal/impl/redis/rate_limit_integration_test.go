@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/warpstreamlabs/bento/internal/message"
 	"github.com/warpstreamlabs/bento/public/service/integration"
 )
 
@@ -63,6 +64,23 @@ func TestIntegrationRedisRateLimit(t *testing.T) {
 	t.Run("testRedisRateLimitRefresh", func(t *testing.T) {
 		testRedisRateLimitRefresh(t, urlStr)
 	})
+
+	t.Run("testRedisRateLimitBasicBytes", func(t *testing.T) {
+		testRedisRateLimitBasicBytes(t, urlStr)
+	})
+
+	t.Run("testRedisRateLimitBatchBytes", func(t *testing.T) {
+		testRedisRateLimitBatchBytes(t, urlStr)
+	})
+
+	t.Run("testRedisRateLimitRefreshBytes", func(t *testing.T) {
+		testRedisRateLimitRefreshBytes(t, urlStr)
+	})
+
+	t.Run("testRedisRateLimitCountAndBytesWithRefresh", func(t *testing.T) {
+		testRedisRateLimitCountAndBytesWithRefresh(t, urlStr)
+	})
+
 }
 
 func testRedisRateLimitBasic(t *testing.T, url string) {
@@ -147,6 +165,173 @@ url: `+url, nil)
 	period, err = rl.Access(ctx)
 	require.NoError(t, err)
 	if period == 0 {
+		t.Error("Expected limit on final request")
+	} else if period > time.Second {
+		t.Errorf("Period beyond interval: %v", period)
+	}
+}
+
+func testRedisRateLimitBasicBytes(t *testing.T, url string) {
+	conf, err := redisRatelimitConfig().ParseYAML(`
+key: rate_limit_basic_bytes
+count: 0
+byte_size: 100
+interval: 1s
+url: `+url, nil)
+	require.NoError(t, err)
+
+	rl, err := newRedisRatelimitFromConfig(conf)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	msgBytes := make([][]byte, 10)
+
+	for i := 0; i < len(msgBytes); i++ {
+		msgBytes[i] = make([]byte, 10)
+	}
+	batch := message.QuickBatch(msgBytes)
+
+	for _, msg := range batch {
+		assert.False(t, rl.Add(ctx, msg))
+		period, _ := rl.Access(ctx)
+		assert.LessOrEqual(t, period, time.Duration(0))
+	}
+
+	assert.True(t, rl.Add(ctx, batch[0]), "Expected rate limit to be reached")
+	require.NoError(t, err)
+	if period, _ := rl.Access(ctx); period == 0 {
+		t.Error("Expected limit on final request")
+	} else if period > time.Second {
+		t.Errorf("Period beyond interval: %v", period)
+	}
+}
+
+func testRedisRateLimitBatchBytes(t *testing.T, url string) {
+	conf, err := redisRatelimitConfig().ParseYAML(`
+key: rate_limit_batch_bytes
+count: 0
+byte_size: 100
+interval: 1s
+url: `+url, nil)
+	require.NoError(t, err)
+
+	rl, err := newRedisRatelimitFromConfig(conf)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	msgBytes := make([][]byte, 10)
+
+	for i := 0; i < len(msgBytes); i++ {
+		msgBytes[i] = make([]byte, 10)
+	}
+	batch := message.QuickBatch(msgBytes)
+
+	assert.False(t, rl.Add(ctx, batch...))
+	period, _ := rl.Access(ctx)
+	assert.LessOrEqual(t, period, time.Duration(0))
+
+	assert.True(t, rl.Add(ctx, batch[0]), "Expected rate limit to be reached")
+	require.NoError(t, err)
+	if period, _ := rl.Access(ctx); period == 0 {
+		t.Error("Expected limit on final request")
+	} else if period > time.Second {
+		t.Errorf("Period beyond interval: %v", period)
+	}
+}
+
+func testRedisRateLimitRefreshBytes(t *testing.T, url string) {
+	conf, err := redisRatelimitConfig().ParseYAML(`
+key: rate_limit_refresh_bytes
+byte_size: 100
+interval: 150ms
+url: `+url, nil)
+	require.NoError(t, err)
+
+	rl, err := newRedisRatelimitFromConfig(conf)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	msgBytes := make([][]byte, 10)
+
+	for i := 0; i < len(msgBytes); i++ {
+		msgBytes[i] = make([]byte, 10)
+	}
+
+	batch := message.QuickBatch(msgBytes)
+	assert.False(t, rl.Add(ctx, batch...))
+	period, _ := rl.Access(ctx)
+	assert.LessOrEqual(t, period, time.Duration(0))
+
+	assert.True(t, rl.Add(ctx, batch[0]), "Expected rate limit to be reached")
+	if period, _ := rl.Access(ctx); period == 0 {
+		t.Error("Expected limit on final request")
+	} else if period > time.Second {
+		t.Errorf("Period beyond interval: %v", period)
+	}
+
+	<-time.After(time.Millisecond * 150)
+
+	assert.False(t, rl.Add(ctx, batch...))
+	period, _ = rl.Access(ctx)
+	if period != 0 {
+		t.Errorf("Rate limited on get")
+	}
+
+	assert.True(t, rl.Add(ctx, batch[0]))
+	if period, _ := rl.Access(ctx); period == 0 {
+		t.Error("Expected limit on final request")
+	} else if period > time.Second {
+		t.Errorf("Period beyond interval: %v", period)
+	}
+}
+
+func testRedisRateLimitCountAndBytesWithRefresh(t *testing.T, url string) {
+	conf, err := redisRatelimitConfig().ParseYAML(`
+key: rate_limit_refresh_count_and_bytes
+byte_size: 100
+count: 15
+interval: 150ms
+url: `+url, nil)
+	require.NoError(t, err)
+
+	rl, err := newRedisRatelimitFromConfig(conf)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	msgWith10Bytes := message.NewPart(make([]byte, 10))
+	msgWith5Bytes := message.NewPart(make([]byte, 5))
+
+	for i := 0; i < 10; i++ {
+		assert.False(t, rl.Add(ctx, msgWith10Bytes))
+		period, _ := rl.Access(ctx)
+		assert.LessOrEqual(t, period, time.Duration(0))
+	}
+
+	// Rate limit on 11th request since byte_size is reached
+	assert.True(t, rl.Add(ctx, msgWith10Bytes), "Expected rate limit to be reached")
+	if period, _ := rl.Access(ctx); period == 0 {
+		t.Error("Expected limit on final request")
+	} else if period > time.Second {
+		t.Errorf("Period beyond interval: %v", period)
+	}
+
+	// Refresh
+	<-time.After(time.Millisecond * 150)
+
+	for i := 0; i < 15; i++ {
+		assert.False(t, rl.Add(ctx, msgWith5Bytes))
+		period, _ := rl.Access(ctx)
+		if period != 0 {
+			t.Errorf("Rate limited on get %v", i)
+		}
+	}
+
+	// rate limit on 16th request since count is reached
+	if period, _ := rl.Access(ctx); period == 0 {
 		t.Error("Expected limit on final request")
 	} else if period > time.Second {
 		t.Errorf("Period beyond interval: %v", period)

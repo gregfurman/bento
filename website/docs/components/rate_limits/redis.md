@@ -35,6 +35,7 @@ label: ""
 redis:
   url: redis://:6397 # No default (required)
   count: 1000
+  byte_size: 0
   interval: 1s
   key: "" # No default (required)
 ```
@@ -57,6 +58,7 @@ redis:
     root_cas_file: ""
     client_certs: []
   count: 1000
+  byte_size: 0
   interval: 1s
   key: "" # No default (required)
 ```
@@ -258,11 +260,19 @@ password: ${KEY_PASSWORD}
 
 ### `count`
 
-The maximum number of messages to allow for a given period of time.
+The maximum number of requests to allow for a given period of time. If `0` disables count based rate-limiting.
 
 
 Type: `int`  
 Default: `1000`  
+
+### `byte_size`
+
+The maximum number of bytes to allow for a given period of time. If `0` disables size based rate-limiting.
+
+
+Type: `int`  
+Default: `0`  
 
 ### `interval`
 

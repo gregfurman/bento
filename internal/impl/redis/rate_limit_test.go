@@ -16,6 +16,25 @@ key: asdf`, nil)
 	_, err = newRedisRatelimitFromConfig(conf)
 	require.Error(t, err)
 
+	conf, err = redisRatelimitConfig().ParseYAML(`
+url: redis://localhost:6379
+byte_size: -1
+key: asdf`, nil)
+	require.NoError(t, err)
+
+	_, err = newRedisRatelimitFromConfig(conf)
+	require.Error(t, err)
+
+	conf, err = redisRatelimitConfig().ParseYAML(`
+url: redis://localhost:6379
+byte_size: 0
+count: 0
+key: asdf`, nil)
+	require.NoError(t, err)
+
+	_, err = newRedisRatelimitFromConfig(conf)
+	require.Error(t, err)
+
 	_, err = redisRatelimitConfig().ParseYAML(`
 url: redis://localhost:6379
 interval: nope

@@ -8,6 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/warpstreamlabs/bento/internal/message"
 	"github.com/warpstreamlabs/bento/public/service"
 )
 
@@ -20,9 +21,13 @@ func redisRatelimitConfig() *service.ConfigSpec {
 		spec = spec.Field(f)
 	}
 
-	spec.Field(service.NewIntField("count").
-		Description("The maximum number of messages to allow for a given period of time.").
-		Default(1000).LintRule(`root = if this <= 0 { [ "count must be larger than zero" ] }`)).
+	spec.Field(
+		service.NewIntField("count").
+			Description("The maximum number of requests to allow for a given period of time. If `0` disables count based rate-limiting.").
+			Default(1000).LintRule(`root = if this < 0 { [ "count cannot be less than zero" ] }`)).
+		Field(service.NewIntField("byte_size").
+			Description("The maximum number of bytes to allow for a given period of time. If `0` disables size based rate-limiting.").
+			Default(0).LintRule(`root = if this < 0 { [ "byte_size cannot be less than zero" ] }`)).
 		Field(service.NewDurationField("interval").
 			Description("The time window to limit requests by.").
 			Default("1s")).
@@ -46,13 +51,15 @@ func init() {
 //------------------------------------------------------------------------------
 
 type redisRatelimit struct {
-	size   int
-	key    string
-	period time.Duration
+	size     int
+	byteSize int
+	key      string
+	period   time.Duration
 
 	client redis.UniversalClient
 
 	accessScript *redis.Script
+	addScript    *redis.Script
 }
 
 func newRedisRatelimitFromConfig(conf *service.ParsedConfig) (*redisRatelimit, error) {
@@ -62,6 +69,11 @@ func newRedisRatelimitFromConfig(conf *service.ParsedConfig) (*redisRatelimit, e
 	}
 
 	count, err := conf.FieldInt("count")
+	if err != nil {
+		return nil, err
+	}
+
+	byteSize, err := conf.FieldInt("byte_size")
 	if err != nil {
 		return nil, err
 	}
@@ -76,35 +88,70 @@ func newRedisRatelimitFromConfig(conf *service.ParsedConfig) (*redisRatelimit, e
 		return nil, err
 	}
 
-	if count <= 0 {
-		return nil, errors.New("count must be larger than zero")
+	if byteSize < 0 || count < 0 {
+		return nil, errors.New("neither byte size nor count can be negative")
+	}
+
+	if byteSize == 0 && count == 0 {
+		return nil, errors.New("either count or byte size must be larger than zero")
 	}
 
 	return &redisRatelimit{
-		size:   count,
-		period: interval,
-		client: client,
-		key:    key,
+		size:     count,
+		byteSize: byteSize,
+		period:   interval,
+		client:   client,
+		key:      key,
 		accessScript: redis.NewScript(`
-local current = redis.call("INCR",KEYS[1])
+local count_limit = tonumber(ARGV[1])
+local byte_limit = tonumber(ARGV[2])
+local expire_ms = tonumber(ARGV[3])
 
-if current == 1 then
-    redis.call("PEXPIRE", KEYS[1], tonumber(ARGV[2]))
+if redis.call("TTL", KEYS[1]) == -1 then
+	redis.call("PEXPIRE", KEYS[1], expire_ms)
 end
 
-if current > tonumber(ARGV[1]) then
-	return redis.call("PTTL", KEYS[1])
+if count_limit > 0 then
+	local current = redis.call("HINCRBY", KEYS[1], "count", 1)
+
+    if current > count_limit then
+        return redis.call("PTTL", KEYS[1])
+    end
+end
+
+if byte_limit > 0 then
+	local bytes = redis.call("HGET", KEYS[1], "bytes")
+	if tonumber(bytes) > byte_limit then
+    	return redis.call("PTTL", KEYS[1])
+	end
 end
 
 return 0
 `),
+		addScript: redis.NewScript(`
+local byte_limit = tonumber(ARGV[2])
+local expire_ms = tonumber(ARGV[3])
+local bytes_to_add = tonumber(ARGV[1])
+
+local current = redis.call("HINCRBY", KEYS[1], "bytes", bytes_to_add)
+
+if redis.call("TTL", KEYS[1]) == -1 then
+	redis.call("PEXPIRE", KEYS[1], expire_ms)
+end
+
+if current > byte_limit then
+	return redis.call("PTTL", KEYS[1])
+end
+
+return 0
+		`),
 	}, nil
 }
 
 //------------------------------------------------------------------------------
 
 func (r *redisRatelimit) Access(ctx context.Context) (time.Duration, error) {
-	result := r.accessScript.Run(ctx, r.client, []string{r.key}, r.size, int(r.period.Milliseconds()))
+	result := r.accessScript.Run(ctx, r.client, []string{r.key}, r.size, r.byteSize, int(r.period.Milliseconds()))
 
 	if result.Err() != nil {
 		return 0, fmt.Errorf("accessing redis rate limit: %w", result.Err())
@@ -115,6 +162,32 @@ func (r *redisRatelimit) Access(ctx context.Context) (time.Duration, error) {
 	}
 
 	return time.Duration((result.Val().(int64)) * int64(time.Millisecond)), nil
+}
+
+func (r *redisRatelimit) Add(ctx context.Context, parts ...*message.Part) bool {
+	if r.byteSize <= 0 || len(parts) == 0 {
+		return false
+	}
+
+	var totalBytes int
+	for _, part := range parts {
+		if part != nil {
+			totalBytes += len(part.AsBytes())
+		}
+	}
+
+	result := r.addScript.Run(ctx, r.client,
+		[]string{r.key},              // KEYS[1]: key for hashset
+		totalBytes,                   // ARGV[1]: bytes to add
+		r.byteSize,                   // ARGV[2]: byte limit
+		int(r.period.Milliseconds())) // ARGV[3]: expiry in ms
+
+	if result.Err() != nil {
+		return false
+	}
+
+	exceeded, ok := result.Val().(int64)
+	return ok && exceeded > 0
 }
 
 func (r *redisRatelimit) Close(ctx context.Context) error {
