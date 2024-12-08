@@ -126,6 +126,10 @@ With this option, you can return topic order and per-topic partition ordering. T
 		Field(service.NewBatchPolicyField("batching").
 			Description("Allows you to configure a [batching policy](/docs/configuration/batching) that applies to individual topic partitions in order to batch messages together before flushing them for processing. Batching can be beneficial for performance as well as useful for windowed processing, and doing so this way preserves the ordering of topic partitions.").
 			Advanced()).
+		Field(service.NewStringField("rate_limit").
+			Description("An optional [`rate_limit`](/docs/components/rate_limits/about) to throttle invocations by.").
+			Default("").
+			Advanced()).
 		LintRule(`
 let has_topic_partitions = this.topics.any(t -> t.contains(":"))
 root = if $has_topic_partitions {
@@ -183,6 +187,7 @@ type franzKafkaReader struct {
 	balancers              []kgo.GroupBalancer
 
 	batchChan atomic.Value
+	rateLimit string
 	res       *service.Resources
 	log       *service.Logger
 	shutSig   *shutdown.Signaller
@@ -195,6 +200,33 @@ func (f *franzKafkaReader) getBatchChan() chan batchWithAckFn {
 
 func (f *franzKafkaReader) storeBatchChan(c chan batchWithAckFn) {
 	f.batchChan.Store(c)
+}
+
+func (f *franzKafkaReader) waitForAccess(ctx context.Context, batch service.MessageBatch) bool {
+	if f.rateLimit == "" {
+		return true
+	}
+	for {
+		var period time.Duration
+		var err error
+		if rerr := f.res.AccessRateLimit(ctx, f.rateLimit, func(rl service.RateLimit) {
+			if mar, ok := rl.(service.MessageAwareRateLimit); ok {
+				mar.Add(ctx, batch...)
+			}
+			period, err = rl.Access(ctx)
+		}); rerr != nil {
+			err = rerr
+		}
+		if err != nil {
+			f.log.Errorf("Rate limit error: %v\n", err)
+			period = time.Second
+		}
+		if period > 0 {
+			<-time.After(period)
+		} else {
+			return true
+		}
+	}
 }
 
 func newFranzKafkaReaderFromConfig(conf *service.ParsedConfig, res *service.Resources) (*franzKafkaReader, error) {
@@ -335,6 +367,10 @@ func newFranzKafkaReaderFromConfig(conf *service.ParsedConfig, res *service.Reso
 		return nil, err
 	}
 
+	if f.rateLimit, err = conf.FieldString("rate_limit"); err != nil {
+		return nil, err
+	}
+
 	tlsConf, tlsEnabled, err := conf.FieldTLSToggled("tls")
 	if err != nil {
 		return nil, err
@@ -406,15 +442,17 @@ type partitionTracker struct {
 
 	outBatchChan chan<- batchWithAckFn
 	commitFn     func(r *kgo.Record)
+	rateLimitFn  func(ctx context.Context, b service.MessageBatch) bool
 
 	shutSig *shutdown.Signaller
 }
 
-func newPartitionTracker(batcher *service.Batcher, batchChan chan<- batchWithAckFn, commitFn func(r *kgo.Record)) *partitionTracker {
+func newPartitionTracker(batcher *service.Batcher, batchChan chan<- batchWithAckFn, commitFn func(r *kgo.Record), rateLimitFn func(ctx context.Context, b service.MessageBatch) bool) *partitionTracker {
 	pt := &partitionTracker{
 		batcher:      batcher,
 		checkpointer: checkpoint.NewUncapped[*kgo.Record](),
 		outBatchChan: batchChan,
+		rateLimitFn:  rateLimitFn,
 		commitFn:     commitFn,
 		shutSig:      shutdown.NewSignaller(),
 	}
@@ -490,6 +528,8 @@ func (p *partitionTracker) loop() {
 			}()
 
 			if len(sendBatch) > 0 {
+				_ = p.rateLimitFn(closeAtLeisureCtx, sendBatch)
+
 				if err := p.sendBatch(closeAtLeisureCtx, sendBatch, sendRecord); err != nil {
 					return
 				}
@@ -547,6 +587,8 @@ func (p *partitionTracker) add(ctx context.Context, m *msgWithRecord, limit int)
 	}
 
 	if len(sendBatch) > 0 {
+		_ = p.rateLimitFn(ctx, sendBatch)
+
 		// Ignoring in the error here is fine, it implies shut down has been
 		// triggered and we would only acknowledge the message by committing it
 		// if it were successfully delivered.
@@ -582,24 +624,27 @@ type checkpointTracker struct {
 	mut    sync.Mutex
 	topics map[string]map[int32]*partitionTracker
 
-	res       *service.Resources
-	batchChan chan<- batchWithAckFn
-	commitFn  func(r *kgo.Record)
-	batchPol  service.BatchPolicy
+	res         *service.Resources
+	batchChan   chan<- batchWithAckFn
+	commitFn    func(r *kgo.Record)
+	rateLimitFn func(ctx context.Context, b service.MessageBatch) bool
+	batchPol    service.BatchPolicy
 }
 
 func newCheckpointTracker(
 	res *service.Resources,
 	batchChan chan<- batchWithAckFn,
 	releaseFn func(r *kgo.Record),
+	rateLimitFn func(ctx context.Context, b service.MessageBatch) bool,
 	batchPol service.BatchPolicy,
 ) *checkpointTracker {
 	return &checkpointTracker{
-		topics:    map[string]map[int32]*partitionTracker{},
-		res:       res,
-		batchChan: batchChan,
-		commitFn:  releaseFn,
-		batchPol:  batchPol,
+		topics:      map[string]map[int32]*partitionTracker{},
+		res:         res,
+		batchChan:   batchChan,
+		commitFn:    releaseFn,
+		rateLimitFn: rateLimitFn,
+		batchPol:    batchPol,
 	}
 }
 
@@ -634,7 +679,7 @@ func (c *checkpointTracker) addRecord(ctx context.Context, m *msgWithRecord, lim
 				batcher = nil
 			}
 		}
-		partTracker = newPartitionTracker(batcher, c.batchChan, c.commitFn)
+		partTracker = newPartitionTracker(batcher, c.batchChan, c.commitFn, c.rateLimitFn)
 		topicTracker[m.r.Partition] = partTracker
 	}
 
@@ -709,7 +754,7 @@ func (f *franzKafkaReader) Connect(ctx context.Context) error {
 			cl.MarkCommitRecords(r)
 		}
 	}
-	checkpoints := newCheckpointTracker(f.res, batchChan, commitFn, f.batchPolicy)
+	checkpoints := newCheckpointTracker(f.res, batchChan, commitFn, f.waitForAccess, f.batchPolicy)
 
 	clientOpts := []kgo.Opt{
 		kgo.SeedBrokers(f.seedBrokers...),
