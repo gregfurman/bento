@@ -250,7 +250,7 @@ func newLambdaClient(
 
 //------------------------------------------------------------------------------
 
-func (l *lambdaClient) waitForAccess(ctx context.Context) bool {
+func (l *lambdaClient) waitForAccess(ctx context.Context, msg *service.Message) bool {
 	if l.rateLimit == "" {
 		return true
 	}
@@ -258,6 +258,9 @@ func (l *lambdaClient) waitForAccess(ctx context.Context) bool {
 		var period time.Duration
 		var err error
 		if rerr := l.mgr.AccessRateLimit(ctx, l.rateLimit, func(rl service.RateLimit) {
+			if mar, ok := rl.(service.MessageAwareRateLimit); ok {
+				mar.Add(ctx, msg)
+			}
 			period, err = rl.Access(ctx)
 		}); rerr != nil {
 			err = rerr
@@ -277,7 +280,7 @@ func (l *lambdaClient) waitForAccess(ctx context.Context) bool {
 func (l *lambdaClient) InvokeV2(p *service.Message) error {
 	remainingRetries := l.retries
 	for {
-		l.waitForAccess(context.Background())
+		l.waitForAccess(context.Background(), p)
 
 		mBytes, err := p.AsBytes()
 		if err != nil {
