@@ -627,7 +627,7 @@ type checkpointTracker struct {
 	res         *service.Resources
 	batchChan   chan<- batchWithAckFn
 	commitFn    func(r *kgo.Record)
-	rateLimitFn func(ctx context.Context, b service.MessageBatch) bool
+	rateLimitFn func(ctx context.Context, msg ...service.Message) bool
 	batchPol    service.BatchPolicy
 }
 
@@ -660,6 +660,7 @@ func (c *checkpointTracker) close() {
 }
 
 func (c *checkpointTracker) addRecord(ctx context.Context, m *msgWithRecord, limit int) (pauseFetch bool) {
+	c.rateLimitFn(ctx, m.msg)
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
