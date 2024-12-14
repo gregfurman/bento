@@ -205,7 +205,7 @@ func (bq *bigQueryStorageWriter) Connect(ctx context.Context) error {
 		}
 	}()
 
-	connCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	connCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	dataset := client.DatasetInProject(client.Project(), bq.conf.datasetID)
 	if _, err = dataset.Metadata(connCtx); err != nil {
@@ -270,7 +270,7 @@ func (bq *bigQueryStorageWriter) WriteBatch(ctx context.Context, batch service.M
 
 	streamDescriptorPair, err := bq.getManagedStreamForTable(ctx, tableID)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	stream := streamDescriptorPair.stream
@@ -332,8 +332,13 @@ func (bq *bigQueryStorageWriter) getManagedStreamForTable(ctx context.Context, t
 		Name: defStreamName,
 		View: storagepb.WriteStreamView_FULL,
 	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get write stream: %w", err)
+		if hasStatusCode(err, http.StatusNotFound) {
+			return nil, fmt.Errorf("failed to get write stream: %w", err)
+		}
+		bq.log.Errorf("failed to get write stream: %s", err.Error())
+		return nil, service.ErrNotConnected
 	}
 
 	descriptor, err := adapt.StorageSchemaToProto2Descriptor(resp.GetTableSchema(), "root")
