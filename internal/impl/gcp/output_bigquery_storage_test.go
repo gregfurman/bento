@@ -170,6 +170,27 @@ endpoint:
 	require.NoError(t, err)
 }
 
+func TestGCPBigQueryStorageOutputConnectFail(t *testing.T) {
+	config := gcpBigQueryWriteAPIConfFromYAML(t, `
+project: project_meow
+dataset: dataset_meow
+table: table_meow
+endpoint:
+  grpc: fakehost
+  http: fakehost
+`)
+
+	output, err := newBigQueryStorageOutput(config, nil)
+	require.NoError(t, err)
+
+	err = output.Connect(context.Background())
+	require.Error(t, err)
+
+	// Clients are never created so Close is a no-op
+	err = output.Close(context.Background())
+	require.NoError(t, err)
+}
+
 func TestGCPBigQueryStorageOutputWriteOK(t *testing.T) {
 	// Setup some custom schema
 	type GithubRepo struct {

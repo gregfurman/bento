@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
+	"time"
 
 	"cloud.google.com/go/bigquery/storage/apiv1/storagepb"
 	"cloud.google.com/go/bigquery/storage/managedwriter"
@@ -197,6 +199,24 @@ func (bq *bigQueryStorageWriter) Connect(ctx context.Context) error {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 
+	defer func() {
+		if client != nil && err != nil {
+			client.Close()
+		}
+	}()
+
+	connCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	dataset := client.DatasetInProject(client.Project(), bq.conf.datasetID)
+	if _, err = dataset.Metadata(connCtx); err != nil {
+		if hasStatusCode(err, http.StatusNotFound) {
+			err = fmt.Errorf("dataset does not exist: %v", bq.conf.datasetID)
+		} else {
+			err = fmt.Errorf("error checking dataset existence: %w", err)
+		}
+		return err
+	}
+
 	var storageClientOpts []option.ClientOption
 	if bq.conf.grpcEndpoint != "" {
 		conn, err := grpc.NewClient(bq.conf.grpcEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -211,6 +231,11 @@ func (bq *bigQueryStorageWriter) Connect(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create storage client: %w", err)
 	}
+	defer func() {
+		if storageClient != nil && err != nil {
+			storageClient.Close()
+		}
+	}()
 
 	bq.client = client
 	bq.storageClient = storageClient
