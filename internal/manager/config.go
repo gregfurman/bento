@@ -6,6 +6,7 @@ import (
 	"github.com/warpstreamlabs/bento/internal/component/output"
 	"github.com/warpstreamlabs/bento/internal/component/processor"
 	"github.com/warpstreamlabs/bento/internal/component/ratelimit"
+	"github.com/warpstreamlabs/bento/internal/component/retry"
 	"github.com/warpstreamlabs/bento/internal/docs"
 )
 
@@ -15,6 +16,7 @@ const (
 	fieldResourceOutputs    = "output_resources"
 	fieldResourceCaches     = "cache_resources"
 	fieldResourceRateLimits = "rate_limit_resources"
+	fieldResourceRetry      = "retry_resources"
 )
 
 // ResourceConfig contains fields for specifying resource components at the root
@@ -25,6 +27,7 @@ type ResourceConfig struct {
 	ResourceOutputs    []output.Config    `yaml:"output_resources,omitempty"`
 	ResourceCaches     []cache.Config     `yaml:"cache_resources,omitempty"`
 	ResourceRateLimits []ratelimit.Config `yaml:"rate_limit_resources,omitempty"`
+	ResourceRetries    []retry.Config     `yaml:"retry_resources,omitempty"`
 }
 
 // NewResourceConfig creates a ResourceConfig with default values.
@@ -35,6 +38,7 @@ func NewResourceConfig() ResourceConfig {
 		ResourceOutputs:    []output.Config{},
 		ResourceCaches:     []cache.Config{},
 		ResourceRateLimits: []ratelimit.Config{},
+		ResourceRetries:    []retry.Config{},
 	}
 }
 
@@ -46,6 +50,7 @@ func (r *ResourceConfig) AddFrom(extra *ResourceConfig) error {
 	r.ResourceOutputs = append(r.ResourceOutputs, extra.ResourceOutputs...)
 	r.ResourceCaches = append(r.ResourceCaches, extra.ResourceCaches...)
 	r.ResourceRateLimits = append(r.ResourceRateLimits, extra.ResourceRateLimits...)
+	r.ResourceRetries = append(r.ResourceRetries, extra.ResourceRetries...)
 	return nil
 }
 
@@ -131,6 +136,20 @@ func FromParsed(prov docs.Provider, pConf *docs.ParsedConfig) (conf ResourceConf
 			return
 		}
 		conf.ResourceRateLimits = append(conf.ResourceRateLimits, c)
+	}
+
+	if l, err = pConf.FieldAnyList(fieldResourceRetry); err != nil {
+		return
+	}
+	for _, p := range l {
+		if v, err = p.FieldAny(); err != nil {
+			return
+		}
+		var c retry.Config
+		if c, err = retry.FromAny(prov, v); err != nil {
+			return
+		}
+		conf.ResourceRetries = append(conf.ResourceRetries, c)
 	}
 	return
 }

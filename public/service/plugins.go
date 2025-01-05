@@ -153,6 +153,19 @@ func RegisterRateLimit(name string, spec *ConfigSpec, ctor RateLimitConstructor)
 	return globalEnvironment.RegisterRateLimit(name, spec, ctor)
 }
 
+// RateLimitConstructor is a func that's provided a configuration type and
+// access to a service manager and must return an instantiation of a rate limit
+// based on the config, or an error.
+type RetryConstructor func(conf *ParsedConfig, mgr *Resources) (Retry, error)
+
+// RegisterRateLimit attempts to register a new rate limit plugin by providing
+// a description of the configuration for the plugin as well as a constructor
+// for the rate limit itself. The constructor will be called for each
+// instantiation of the component within a config.
+func RegisterRetry(name string, spec *ConfigSpec, ctor RetryConstructor) error {
+	return globalEnvironment.RegisterRetry(name, spec, ctor)
+}
+
 // MetricsExporterConstructor is a func that's provided a configuration type and
 // access to a service manager and must return an instantiation of a metrics
 // exporter based on the config, or an error.

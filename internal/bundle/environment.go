@@ -14,6 +14,7 @@ type Environment struct {
 	outputs    *OutputSet
 	processors *ProcessorSet
 	rateLimits *RateLimitSet
+	retries    *RetrySet
 	metrics    *MetricsSet
 	tracers    *TracerSet
 
@@ -29,6 +30,7 @@ func NewEnvironment() *Environment {
 		outputs:    &OutputSet{},
 		processors: &ProcessorSet{},
 		rateLimits: &RateLimitSet{},
+		retries:    &RetrySet{},
 		metrics:    &MetricsSet{},
 		tracers:    &TracerSet{},
 		scanners:   &ScannerSet{},
@@ -56,6 +58,9 @@ func (e *Environment) Clone() *Environment {
 	}
 	for _, v := range e.rateLimits.specs {
 		_ = newEnv.rateLimits.Add(v.constructor, v.spec)
+	}
+	for _, v := range e.retries.specs {
+		_ = newEnv.retries.Add(v.constructor, v.spec)
 	}
 	for _, v := range e.metrics.specs {
 		_ = newEnv.metrics.Add(v.constructor, v.spec)
@@ -87,6 +92,8 @@ func (e *Environment) GetDocs(name string, ctype docs.Type) (docs.ComponentSpec,
 		spec, ok = e.processors.DocsFor(name)
 	case docs.TypeRateLimit:
 		spec, ok = e.rateLimits.DocsFor(name)
+	case docs.TypeRetry:
+		spec, ok = e.retries.DocsFor(name)
 	case docs.TypeMetrics:
 		spec, ok = e.metrics.DocsFor(name)
 	case docs.TypeTracer:
@@ -106,6 +113,7 @@ var GlobalEnvironment = &Environment{
 	outputs:    AllOutputs,
 	processors: AllProcessors,
 	rateLimits: AllRateLimits,
+	retries:    AllRetries,
 	metrics:    AllMetrics,
 	tracers:    AllTracers,
 	scanners:   AllScanners,

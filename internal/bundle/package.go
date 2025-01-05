@@ -25,6 +25,7 @@ import (
 	"github.com/warpstreamlabs/bento/internal/component/output"
 	"github.com/warpstreamlabs/bento/internal/component/processor"
 	"github.com/warpstreamlabs/bento/internal/component/ratelimit"
+	"github.com/warpstreamlabs/bento/internal/component/retry"
 	"github.com/warpstreamlabs/bento/internal/component/scanner"
 	"github.com/warpstreamlabs/bento/internal/filepath/ifs"
 	"github.com/warpstreamlabs/bento/internal/log"
@@ -63,6 +64,7 @@ type NewManagement interface {
 	NewProcessor(conf processor.Config) (processor.V1, error)
 	NewOutput(conf output.Config, pipelines ...processor.PipelineConstructorFunc) (output.Streamed, error)
 	NewRateLimit(conf ratelimit.Config) (ratelimit.V1, error)
+	NewRetry(conf retry.Config) (retry.V1, error)
 	NewScanner(conf scanner.Config) (scanner.Creator, error)
 
 	ProbeCache(name string) bool
@@ -89,6 +91,11 @@ type NewManagement interface {
 	AccessRateLimit(ctx context.Context, name string, fn func(ratelimit.V1)) error
 	StoreRateLimit(ctx context.Context, name string, conf ratelimit.Config) error
 	RemoveRateLimit(ctx context.Context, name string) error
+
+	ProbeRetry(name string) bool
+	AccessRetry(ctx context.Context, name string, fn func(retry.V1)) error
+	StoreRetry(ctx context.Context, name string, conf retry.Config) error
+	RemoveRetry(ctx context.Context, name string) error
 
 	GetPipe(name string) (<-chan message.Transaction, error)
 	SetPipe(name string, t <-chan message.Transaction)

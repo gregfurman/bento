@@ -22,6 +22,7 @@ type MappedDocsProvider struct {
 	outputMap     map[string]ComponentSpec
 	processorMap  map[string]ComponentSpec
 	rateLimitMap  map[string]ComponentSpec
+	retryMap      map[string]ComponentSpec
 	tracerMap     map[string]ComponentSpec
 	scannerMap    map[string]ComponentSpec
 	componentLock sync.Mutex
@@ -37,6 +38,7 @@ func NewMappedDocsProvider() *MappedDocsProvider {
 		outputMap:    map[string]ComponentSpec{},
 		processorMap: map[string]ComponentSpec{},
 		rateLimitMap: map[string]ComponentSpec{},
+		retryMap:     map[string]ComponentSpec{},
 		tracerMap:    map[string]ComponentSpec{},
 		scannerMap:   map[string]ComponentSpec{},
 	}
@@ -53,6 +55,7 @@ func (m *MappedDocsProvider) Clone() *MappedDocsProvider {
 		outputMap:    map[string]ComponentSpec{},
 		processorMap: map[string]ComponentSpec{},
 		rateLimitMap: map[string]ComponentSpec{},
+		retryMap:     map[string]ComponentSpec{},
 		tracerMap:    map[string]ComponentSpec{},
 		scannerMap:   map[string]ComponentSpec{},
 	}
@@ -77,6 +80,9 @@ func (m *MappedDocsProvider) Clone() *MappedDocsProvider {
 	}
 	for k, v := range m.rateLimitMap {
 		newM.rateLimitMap[k] = v
+	}
+	for k, v := range m.retryMap {
+		newM.retryMap[k] = v
 	}
 	for k, v := range m.tracerMap {
 		newM.tracerMap[k] = v
@@ -107,6 +113,8 @@ func (m *MappedDocsProvider) RegisterDocs(spec ComponentSpec) {
 		m.processorMap[spec.Name] = spec
 	case TypeRateLimit:
 		m.rateLimitMap[spec.Name] = spec
+	case TypeRetry:
+		m.retryMap[spec.Name] = spec
 	case TypeTracer:
 		m.tracerMap[spec.Name] = spec
 	case TypeScanner:
@@ -137,6 +145,8 @@ func (m *MappedDocsProvider) GetDocs(name string, ctype Type) (ComponentSpec, bo
 		spec, ok = m.processorMap[name]
 	case TypeRateLimit:
 		spec, ok = m.rateLimitMap[name]
+	case TypeRetry:
+		spec, ok = m.retryMap[name]
 	case TypeTracer:
 		spec, ok = m.tracerMap[name]
 	case TypeScanner:

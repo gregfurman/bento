@@ -42,6 +42,14 @@ rate_limit_resources:
     local:
       count: 123
       interval: 100ms
+retry_resources:
+  - label: f
+    local:
+      max_retries: 0
+      backoff:
+        initial_interval: 1s
+        max_interval: 5s
+        max_elapsed_time: 30s
 `,
 			validateFn: func(t testing.TB, v manager.ResourceConfig) {
 				require.Len(t, v.ResourceCaches, 1)
@@ -49,6 +57,7 @@ rate_limit_resources:
 				require.Len(t, v.ResourceInputs, 1)
 				require.Len(t, v.ResourceOutputs, 1)
 				require.Len(t, v.ResourceProcessors, 1)
+				require.Len(t, v.ResourceRetries, 1)
 
 				assert.Equal(t, "a", v.ResourceInputs[0].Label)
 				assert.Equal(t, "generate", v.ResourceInputs[0].Type)
@@ -64,6 +73,9 @@ rate_limit_resources:
 
 				assert.Equal(t, "e", v.ResourceRateLimits[0].Label)
 				assert.Equal(t, "local", v.ResourceRateLimits[0].Type)
+
+				assert.Equal(t, "f", v.ResourceRetries[0].Label)
+				assert.Equal(t, "local", v.ResourceRetries[0].Type)
 			},
 		},
 	}

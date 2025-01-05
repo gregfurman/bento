@@ -91,6 +91,7 @@ var (
 	ErrCacheNotFound     = errors.New("cache not found")
 	ErrProcessorNotFound = errors.New("processor not found")
 	ErrRateLimitNotFound = errors.New("rate limit not found")
+	ErrRetryNotFound     = errors.New("retry not found")
 	ErrOutputNotFound    = errors.New("output not found")
 	ErrKeyAlreadyExists  = errors.New("key already exists")
 	ErrKeyNotFound       = errors.New("key does not exist")

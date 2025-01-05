@@ -21,6 +21,7 @@ import (
 	"github.com/warpstreamlabs/bento/internal/component/output"
 	"github.com/warpstreamlabs/bento/internal/component/processor"
 	"github.com/warpstreamlabs/bento/internal/component/ratelimit"
+	"github.com/warpstreamlabs/bento/internal/component/retry"
 	"github.com/warpstreamlabs/bento/internal/component/scanner"
 	"github.com/warpstreamlabs/bento/internal/docs"
 	"github.com/warpstreamlabs/bento/internal/filepath/ifs"
@@ -81,6 +82,7 @@ type Type struct {
 	processors *liveResources[processor.V1]
 	outputs    *liveResources[*outputWrapper]
 	rateLimits *liveResources[ratelimit.V1]
+	retries    *liveResources[retry.V1]
 
 	// Collections of component constructors
 	env      *bundle.Environment
@@ -194,6 +196,7 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 		processors: newLiveResources[processor.V1](),
 		outputs:    newLiveResources[*outputWrapper](),
 		rateLimits: newLiveResources[ratelimit.V1](),
+		retries:    newLiveResources[retry.V1](),
 
 		// Environment defaults to global (everything that was imported).
 		env:      bundle.GlobalEnvironment,
@@ -263,10 +266,22 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 		}
 		t.rateLimits.Add(c.Label, nil)
 	}
+	for _, c := range conf.ResourceRetries {
+		if err := checkLabel("retry", c.Label); err != nil {
+			return nil, err
+		}
+		t.retries.Add(c.Label, nil)
+	}
 
 	// Labels validated, begin construction
 	for _, conf := range conf.ResourceRateLimits {
 		if err := t.StoreRateLimit(context.Background(), conf.Label, conf); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, conf := range conf.ResourceRetries {
+		if err := t.StoreRetry(context.Background(), conf.Label, conf); err != nil {
 			return nil, err
 		}
 	}
@@ -881,6 +896,83 @@ func (t *Type) StoreRateLimit(ctx context.Context, name string, conf ratelimit.C
 func (t *Type) RemoveRateLimit(ctx context.Context, name string) error {
 	var closeErr error
 	if err := t.rateLimits.Access(name, false, func(r *ratelimit.V1, set func(r *ratelimit.V1)) {
+		if r == nil {
+			return
+		}
+		if closeErr = (*r).Close(ctx); closeErr != nil {
+			return
+		}
+		set(nil)
+	}); err != nil {
+		return err
+	}
+	return closeErr
+}
+
+//------------------------------------------------------------------------------
+
+// ProbeRateLimit returns true if a rate limit resource exists under the
+// provided name.
+func (t *Type) ProbeRetry(name string) bool {
+	return t.retries.Probe(name)
+}
+
+// AccessRetry attempts to access a retry resource by a unique
+// identifier and executes a closure function with the rate limit as an
+// argument. Returns an error if the rate limit does not exist (or is otherwise
+// inaccessible).
+//
+// During the execution of the provided closure it is guaranteed that the
+// resource will not be closed or removed. However, it is possible for the
+// resource to be accessed by any number of components in parallel.
+func (t *Type) AccessRetry(ctx context.Context, name string, fn func(retry.V1)) (err error) {
+	if rerr := t.retries.RAccess(name, func(t retry.V1) {
+		if t == nil {
+			err = ErrResourceNotFound(name)
+			return
+		}
+		fn(t)
+	}); rerr != nil {
+		err = rerr
+	}
+	return
+}
+
+// NewRateLimit attempts to create a new rate limit component from a config.
+func (t *Type) NewRetry(conf retry.Config) (retry.V1, error) {
+	return t.env.RetryInit(conf, t.forLabel(conf.Label))
+}
+
+// StoreRetry attempts to store a new retry resource. If an existing
+// resource has the same name it is closed and removed _before_ the new one is
+// initialized in order to avoid duplicate connections.
+func (t *Type) StoreRetry(ctx context.Context, name string, conf retry.Config) error {
+	var initErr error
+	if err := t.retries.Access(name, true, func(r *retry.V1, set func(*retry.V1)) {
+		if r != nil {
+			// If a previous resource exists with the same name then we do NOT allow
+			// it to be replaced unless it can be successfully closed. This ensures
+			// that we do not leak connections.
+			if initErr = (*r).Close(ctx); initErr != nil {
+				return
+			}
+		}
+
+		var newRetry retry.V1
+		if newRetry, initErr = t.intoPath("retry_resources").NewRetry(conf); initErr != nil {
+			return
+		}
+		set(&newRetry)
+	}); err != nil {
+		return err
+	}
+	return initErr
+}
+
+// RemoveRetry attempts to close and remove an existing rate limit resource.
+func (t *Type) RemoveRetry(ctx context.Context, name string) error {
+	var closeErr error
+	if err := t.retries.Access(name, false, func(r *retry.V1, set func(r *retry.V1)) {
 		if r == nil {
 			return
 		}

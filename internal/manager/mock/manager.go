@@ -18,6 +18,7 @@ import (
 	"github.com/warpstreamlabs/bento/internal/component/output"
 	"github.com/warpstreamlabs/bento/internal/component/processor"
 	"github.com/warpstreamlabs/bento/internal/component/ratelimit"
+	"github.com/warpstreamlabs/bento/internal/component/retry"
 	"github.com/warpstreamlabs/bento/internal/component/scanner"
 	"github.com/warpstreamlabs/bento/internal/filepath/ifs"
 	"github.com/warpstreamlabs/bento/internal/log"
@@ -32,6 +33,7 @@ type Manager struct {
 	Inputs     map[string]*Input
 	Caches     map[string]map[string]CacheItem
 	RateLimits map[string]RateLimit
+	Retry      map[string]Retry
 	Outputs    map[string]OutputWriter
 	Processors map[string]Processor
 	Pipes      map[string]<-chan message.Transaction
@@ -135,6 +137,16 @@ func (m *Manager) NewRateLimit(conf ratelimit.Config) (ratelimit.V1, error) {
 // StoreRateLimit always errors on invalid type.
 func (m *Manager) StoreRateLimit(ctx context.Context, name string, conf ratelimit.Config) error {
 	return component.ErrInvalidType("rate_limit", conf.Type)
+}
+
+// NewRateLimit always errors on invalid type.
+func (m *Manager) NewRetry(conf retry.Config) (retry.V1, error) {
+	return bundle.AllRetries.Init(conf, m)
+}
+
+// StoreRateLimit always errors on invalid type.
+func (m *Manager) StoreRetry(ctx context.Context, name string, conf retry.Config) error {
+	return component.ErrInvalidType("retry", conf.Type)
 }
 
 // NewScanner attempts to create a new scanner component from a config.
@@ -245,6 +257,42 @@ func (m *Manager) RemoveRateLimit(ctx context.Context, name string) error {
 	_, exists := m.RateLimits[name]
 	if !exists {
 		return component.ErrRateLimitNotFound
+	}
+	delete(m.RateLimits, name)
+	return nil
+}
+
+// AccessRateLimit executes a closure on a rate limit resource.
+func (m *Manager) AccessRetry(ctx context.Context, name string, fn func(retry.V1)) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	r, ok := m.Retry[name]
+	if !ok {
+		return component.ErrRetryNotFound
+	}
+	fn(r)
+	return nil
+}
+
+// ProbeRetry returns true if a retry limit resource exists under the
+// provided name.
+func (m *Manager) ProbeRetry(name string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	_, exists := m.Retry[name]
+	return exists
+}
+
+// RemoveRateLimit removes a resource.
+func (m *Manager) RemoveRetry(ctx context.Context, name string) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	_, exists := m.Retry[name]
+	if !exists {
+		return component.ErrRetryNotFound
 	}
 	delete(m.RateLimits, name)
 	return nil

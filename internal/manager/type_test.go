@@ -15,6 +15,7 @@ import (
 	"github.com/warpstreamlabs/bento/internal/component/output"
 	"github.com/warpstreamlabs/bento/internal/component/processor"
 	"github.com/warpstreamlabs/bento/internal/component/ratelimit"
+	"github.com/warpstreamlabs/bento/internal/component/retry"
 	"github.com/warpstreamlabs/bento/internal/component/testutil"
 	"github.com/warpstreamlabs/bento/internal/docs"
 	"github.com/warpstreamlabs/bento/internal/manager"
@@ -576,4 +577,25 @@ func TestManagerGenericGetOrSet(t *testing.T) {
 	v, loaded = mgr.GetOrSetGeneric(testKeyA, "bar")
 	assert.True(t, loaded)
 	assert.Equal(t, "foo", v)
+}
+
+func TestManagerRetry(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	fooProc := retry.NewConfig()
+	fooProc.Label = "foo"
+	conf.ResourceRetries = append(conf.ResourceRetries, fooProc)
+
+	barProc := retry.NewConfig()
+	barProc.Label = "bar"
+	conf.ResourceRetries = append(conf.ResourceRetries, barProc)
+
+	mgr, err := manager.New(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.True(t, mgr.ProbeProcessor("foo"))
+	require.True(t, mgr.ProbeProcessor("bar"))
+	require.False(t, mgr.ProbeProcessor("baz"))
 }

@@ -52,6 +52,7 @@ var (
 	TypeOutput    Type = "output"
 	TypeProcessor Type = "processor"
 	TypeRateLimit Type = "rate_limit"
+	TypeRetry     Type = "retry"
 	TypeTracer    Type = "tracer"
 	TypeScanner   Type = "scanner"
 )
@@ -66,6 +67,7 @@ func Types() []Type {
 		TypeOutput,
 		TypeProcessor,
 		TypeRateLimit,
+		TypeRetry,
 		TypeTracer,
 		TypeScanner,
 	}

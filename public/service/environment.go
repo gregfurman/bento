@@ -18,6 +18,7 @@ import (
 	oprocessors "github.com/warpstreamlabs/bento/internal/component/output/processors"
 	"github.com/warpstreamlabs/bento/internal/component/processor"
 	"github.com/warpstreamlabs/bento/internal/component/ratelimit"
+	"github.com/warpstreamlabs/bento/internal/component/retry"
 	"github.com/warpstreamlabs/bento/internal/component/scanner"
 	"github.com/warpstreamlabs/bento/internal/component/tracer"
 	"github.com/warpstreamlabs/bento/internal/config"
@@ -525,6 +526,52 @@ func (e *Environment) WalkRateLimits(fn func(name string, config *ConfigView)) {
 // unknown.
 func (e *Environment) GetRateLimitConfig(name string) (*ConfigView, bool) {
 	c, exists := bundle.AllRateLimits.DocsFor(name)
+	if !exists {
+		return nil, false
+	}
+	return &ConfigView{
+		prov:      e.internal,
+		component: c,
+	}, true
+}
+
+// RegisterRetry attempts to register a new rate limit plugin by providing
+// a description of the configuration for the plugin as well as a constructor
+// for the retry itself. The constructor will be called for each
+// instantiation of the component within a config.
+func (e *Environment) RegisterRetry(name string, spec *ConfigSpec, ctor RetryConstructor) error {
+	componentSpec := spec.component
+	componentSpec.Name = name
+	componentSpec.Type = docs.TypeRetry
+	return e.internal.RetryAdd(func(conf retry.Config, nm bundle.NewManagement) (retry.V1, error) {
+		pluginConf, err := extractConfig(nm, spec, name, conf.Plugin)
+		if err != nil {
+			return nil, err
+		}
+		r, err := ctor(pluginConf, newResourcesFromManager(nm))
+		if err != nil {
+			return nil, err
+		}
+		return newAirGapRetry(r, nil), nil
+	}, componentSpec)
+}
+
+// WalkRetries executes a provided function argument for every retry
+// component that has been registered to the environment.
+func (e *Environment) WalkRetries(fn func(name string, config *ConfigView)) {
+	for _, v := range e.internal.RetryDocs() {
+		fn(v.Name, &ConfigView{
+			prov:      e.internal,
+			component: v,
+		})
+	}
+}
+
+// GetRetryConfig attempts to obtain a retry configuration spec by the
+// component name. Returns a nil ConfigView and false if the component is
+// unknown.
+func (e *Environment) GetRetryConfig(name string) (*ConfigView, bool) {
+	c, exists := bundle.AllRetries.DocsFor(name)
 	if !exists {
 		return nil, false
 	}

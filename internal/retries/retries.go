@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	crboFieldMaxRetries     = "max_retries"
-	crboFieldBackOff        = "backoff"
-	crboFieldInitInterval   = "initial_interval"
-	crboFieldMaxInterval    = "max_interval"
-	crboFieldMaxElapsedTime = "max_elapsed_time"
+	crboFieldMaxRetries          = "max_retries"
+	crboFieldBackOff             = "backoff"
+	crboFieldInitInterval        = "initial_interval"
+	crboFieldMaxInterval         = "max_interval"
+	crboFieldMaxElapsedTime      = "max_elapsed_time"
+	crboFieldRandomizationFactor = "randomization_factor"
 )
 
 func CommonRetryBackOffFields(
@@ -37,6 +38,9 @@ func CommonRetryBackOffFields(
 			service.NewDurationField(crboFieldMaxElapsedTime).
 				Description("The maximum period to wait before retry attempts are abandoned. If zero then no limit is used.").
 				Default(defaultMaxElapsed),
+			service.NewFloatField("The factor used to add random jitter to each caclulated interval where `Randomized interval = RetryInterval * (1 ± RandomizationFactor)`. If zero then no jitter is used.").
+				Default(0.5).
+				Advanced(),
 		).
 			Description("Control time intervals between retry attempts.").
 			Advanced(),
@@ -51,31 +55,44 @@ func fieldDurationOrEmptyStr(pConf *service.ParsedConfig, path ...string) (time.
 }
 
 func CommonRetryBackOffCtorFromParsed(pConf *service.ParsedConfig) (ctor func() backoff.BackOff, err error) {
+	var opts []backoff.ExponentialBackOffOpts
+
 	var maxRetries int
 	if maxRetries, err = pConf.FieldInt(crboFieldMaxRetries); err != nil {
 		return
 	}
 
 	var initInterval, maxInterval, maxElapsed time.Duration
+	var randomFactor float64
 	if pConf.Contains(crboFieldBackOff) {
 		bConf := pConf.Namespace(crboFieldBackOff)
 		if initInterval, err = fieldDurationOrEmptyStr(bConf, crboFieldInitInterval); err != nil {
 			return
 		}
+		opts = append(opts, backoff.WithInitialInterval(initInterval))
+
 		if maxInterval, err = fieldDurationOrEmptyStr(bConf, crboFieldMaxInterval); err != nil {
 			return
 		}
+
+		opts = append(opts, backoff.WithMaxInterval(maxInterval))
+
 		if maxElapsed, err = fieldDurationOrEmptyStr(bConf, crboFieldMaxElapsedTime); err != nil {
 			return
+		}
+
+		opts = append(opts, backoff.WithMaxElapsedTime(maxElapsed))
+
+		if bConf.Contains(crboFieldRandomizationFactor) {
+			if randomFactor, err = bConf.FieldFloat(crboFieldRandomizationFactor); err != nil {
+				return
+			}
+			opts = append(opts, backoff.WithRandomizationFactor(randomFactor))
 		}
 	}
 
 	return func() backoff.BackOff {
-		boff := backoff.NewExponentialBackOff()
-
-		boff.InitialInterval = initInterval
-		boff.MaxInterval = maxInterval
-		boff.MaxElapsedTime = maxElapsed
+		boff := backoff.NewExponentialBackOff(opts...)
 
 		if maxRetries > 0 {
 			return backoff.WithMaxRetries(boff, uint64(maxRetries))

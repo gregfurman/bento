@@ -44,5 +44,9 @@ func Spec() docs.FieldSpecs {
 		docs.FieldRateLimit(
 			"rate_limit_resources", "A list of rate limit resources, each must have a unique label.",
 		).Array().LinterFunc(lintResource).HasDefault([]any{}).Advanced(),
+
+		docs.FieldRetry(
+			"retry_resources", "A list of retry resources, each must have a unique label.",
+		).Array().LinterFunc(lintResource).HasDefault([]any{}).Advanced(),
 	}
 }

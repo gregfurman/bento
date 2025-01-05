@@ -28,6 +28,7 @@ var (
 	FieldTypeCache     FieldType = "cache"
 	FieldTypeProcessor FieldType = "processor"
 	FieldTypeRateLimit FieldType = "rate_limit"
+	FieldTypeRetry     FieldType = "retry"
 	FieldTypeOutput    FieldType = "output"
 	FieldTypeMetrics   FieldType = "metrics"
 	FieldTypeTracer    FieldType = "tracer"
@@ -47,6 +48,8 @@ func (t FieldType) IsCoreComponent() (Type, bool) {
 		return TypeProcessor, true
 	case FieldTypeRateLimit:
 		return TypeRateLimit, true
+	case FieldTypeRetry:
+		return TypeRetry, true
 	case FieldTypeOutput:
 		return TypeOutput, true
 	case FieldTypeTracer:
@@ -548,6 +551,11 @@ func FieldCache(name, description string, examples ...any) FieldSpec {
 // FieldRateLimit returns a field spec for a rate limit typed field.
 func FieldRateLimit(name, description string, examples ...any) FieldSpec {
 	return newField(name, description, examples...).HasType(FieldTypeRateLimit)
+}
+
+// FieldRetry returns a field spec for a retry typed field.
+func FieldRetry(name, description string, examples ...any) FieldSpec {
+	return newField(name, description, examples...).HasType(FieldTypeRetry)
 }
 
 // FieldMetrics returns a field spec for a metrics typed field.
