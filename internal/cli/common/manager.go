@@ -106,8 +106,10 @@ func CreateManager(
 	}, mgrOpts...)
 
 	// Initialise processors with global error handling strategy
-	if conf.ErrorHandling.Strategy == "reject" {
-		mgrOpts = append(mgrOpts, manager.OptSetEnvironment(strict.StrictBundle(bundle.GlobalEnvironment)))
+	if retryResource := conf.ErrorHandling.Resource; retryResource != "" {
+		mgrOpts = append(mgrOpts, manager.OptSetEnvironment(
+			strict.StrictBundle(bundle.GlobalEnvironment, strict.WithRetryResource(retryResource))),
+		)
 	}
 
 	// Create resource manager.
