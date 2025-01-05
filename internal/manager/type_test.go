@@ -299,6 +299,83 @@ func TestManagerBadRateLimit(t *testing.T) {
 	}
 }
 
+func TestManagerRetry(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	fooProc := retry.NewConfig()
+	fooProc.Label = "foo"
+	conf.ResourceRetries = append(conf.ResourceRetries, fooProc)
+
+	barProc := retry.NewConfig()
+	barProc.Label = "bar"
+	conf.ResourceRetries = append(conf.ResourceRetries, barProc)
+
+	mgr, err := manager.New(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.True(t, mgr.ProbeRetry("foo"))
+	require.True(t, mgr.ProbeRetry("bar"))
+	require.False(t, mgr.ProbeRetry("baz"))
+}
+
+func TestManagerRetryList(t *testing.T) {
+	cFoo := retry.NewConfig()
+	cFoo.Label = "foo"
+
+	cBar := retry.NewConfig()
+	cBar.Label = "bar"
+
+	conf := manager.NewResourceConfig()
+	conf.ResourceRetries = append(conf.ResourceRetries, cFoo, cBar)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	err = mgr.AccessRetry(context.Background(), "foo", func(retry.V1) {})
+	require.NoError(t, err)
+
+	err = mgr.AccessRetry(context.Background(), "bar", func(retry.V1) {})
+	require.NoError(t, err)
+
+	err = mgr.AccessRetry(context.Background(), "baz", func(retry.V1) {})
+	assert.EqualError(t, err, "unable to locate resource: baz")
+}
+
+func TestManagerRetryListErrors(t *testing.T) {
+	cFoo := retry.NewConfig()
+	cFoo.Label = "foo"
+
+	cBar := retry.NewConfig()
+	cBar.Label = "foo"
+
+	conf := manager.NewResourceConfig()
+	conf.ResourceRetries = append(conf.ResourceRetries, cFoo, cBar)
+
+	_, err := manager.New(conf)
+	require.EqualError(t, err, "retry resource label 'foo' collides with a previously defined resource")
+
+	cEmpty := retry.NewConfig()
+	conf = manager.NewResourceConfig()
+	conf.ResourceRetries = append(conf.ResourceRetries, cEmpty)
+
+	_, err = manager.New(conf)
+	require.EqualError(t, err, "retry resource has an empty label")
+}
+
+func TestManagerBadRetry(t *testing.T) {
+	conf := manager.NewResourceConfig()
+	badConf := retry.NewConfig()
+	badConf.Type = "notexist"
+	badConf.Label = "bad"
+	conf.ResourceRetries = append(conf.ResourceRetries, badConf)
+
+	if _, err := manager.New(conf); err == nil {
+		t.Fatal("Expected error from bad retry")
+	}
+}
+
 func TestManagerProcessor(t *testing.T) {
 	conf := manager.NewResourceConfig()
 
@@ -577,25 +654,4 @@ func TestManagerGenericGetOrSet(t *testing.T) {
 	v, loaded = mgr.GetOrSetGeneric(testKeyA, "bar")
 	assert.True(t, loaded)
 	assert.Equal(t, "foo", v)
-}
-
-func TestManagerRetry(t *testing.T) {
-	conf := manager.NewResourceConfig()
-
-	fooProc := retry.NewConfig()
-	fooProc.Label = "foo"
-	conf.ResourceRetries = append(conf.ResourceRetries, fooProc)
-
-	barProc := retry.NewConfig()
-	barProc.Label = "bar"
-	conf.ResourceRetries = append(conf.ResourceRetries, barProc)
-
-	mgr, err := manager.New(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	require.True(t, mgr.ProbeProcessor("foo"))
-	require.True(t, mgr.ProbeProcessor("bar"))
-	require.False(t, mgr.ProbeProcessor("baz"))
 }

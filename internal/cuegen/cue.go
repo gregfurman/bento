@@ -151,6 +151,8 @@ func doScalarField(spec docs.FieldSpec) (*ast.Field, error) {
 		val, optional = identProcessorDisjunction, optionalMark
 	case docs.FieldTypeRateLimit:
 		val, optional = identRateLimitDisjunction, optionalMark
+	case docs.FieldTypeRetry:
+		val, optional = identRetryDisjunction, optionalMark
 	case docs.FieldTypeOutput:
 		val, optional = identOutputDisjunction, optionalMark
 	case docs.FieldTypeMetrics:

@@ -92,6 +92,19 @@ func GenerateSchema(sch schema.Full) ([]byte, error) {
 	}
 	root.Decls = append(root.Decls, rateLimitDecls...)
 
+	retryDecls, err := doComponents(
+		sch.RateLimits,
+		&componentOptions{
+			collectionIdent:  identRetryCollection,
+			disjunctionIdent: identRetryDisjunction,
+			canLabel:         true,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	root.Decls = append(root.Decls, retryDecls...)
+
 	bufferDecls, err := doComponents(
 		sch.Buffers,
 		&componentOptions{

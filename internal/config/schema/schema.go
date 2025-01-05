@@ -19,6 +19,7 @@ type Full struct {
 	Outputs           []docs.ComponentSpec `json:"outputs,omitempty"`
 	Processors        []docs.ComponentSpec `json:"processors,omitempty"`
 	RateLimits        []docs.ComponentSpec `json:"rate-limits,omitempty"`
+	Retries           []docs.ComponentSpec `json:"retries,omitempty"`
 	Metrics           []docs.ComponentSpec `json:"metrics,omitempty"`
 	Tracers           []docs.ComponentSpec `json:"tracers,omitempty"`
 	Scanners          []docs.ComponentSpec `json:"scanners,omitempty"`
@@ -39,6 +40,7 @@ func New(version, date string) Full {
 		Outputs:           bundle.AllOutputs.Docs(),
 		Processors:        bundle.AllProcessors.Docs(),
 		RateLimits:        bundle.AllRateLimits.Docs(),
+		Retries:           bundle.AllRetries.Docs(),
 		Metrics:           bundle.AllMetrics.Docs(),
 		Tracers:           bundle.AllTracers.Docs(),
 		Scanners:          bundle.AllScanners.Docs(),
@@ -67,6 +69,7 @@ func (f *Full) ReduceToStatus(status string) {
 	f.Outputs = ofStatus(status, f.Outputs)
 	f.Processors = ofStatus(status, f.Processors)
 	f.RateLimits = ofStatus(status, f.RateLimits)
+	f.Retries = ofStatus(status, f.Retries)
 	f.Metrics = ofStatus(status, f.Metrics)
 	f.Tracers = ofStatus(status, f.Tracers)
 	f.Scanners = ofStatus(status, f.Scanners)
@@ -128,6 +131,7 @@ func (f *Full) Flattened() map[string][]string {
 		"outputs":            justNames(f.Outputs),
 		"processors":         justNames(f.Processors),
 		"rate-limits":        justNames(f.RateLimits),
+		"retries":            justNames(f.RateLimits),
 		"metrics":            justNames(f.Metrics),
 		"tracers":            justNames(f.Tracers),
 		"scanners":           justNames(f.Scanners),
@@ -146,6 +150,7 @@ func (f *Full) Scrub() {
 	scrubComponentSpecs(f.Outputs)
 	scrubComponentSpecs(f.Processors)
 	scrubComponentSpecs(f.RateLimits)
+	scrubComponentSpecs(f.Retries)
 	scrubComponentSpecs(f.Metrics)
 	scrubComponentSpecs(f.Tracers)
 	scrubComponentSpecs(f.Scanners)

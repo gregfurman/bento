@@ -17,6 +17,9 @@ var (
 	identRateLimitDisjunction = ast.NewIdent("#RateLimit")
 	identRateLimitCollection  = ast.NewIdent("#AllRateLimits")
 
+	identRetryDisjunction = ast.NewIdent("#Retry")
+	identRetryCollection  = ast.NewIdent("#AllRetries")
+
 	identBufferDisjunction = ast.NewIdent("#Buffer")
 	identBufferCollection  = ast.NewIdent("#AllBuffers")
 
