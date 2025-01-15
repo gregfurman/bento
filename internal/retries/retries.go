@@ -38,7 +38,8 @@ func CommonRetryBackOffFields(
 			service.NewDurationField(crboFieldMaxElapsedTime).
 				Description("The maximum period to wait before retry attempts are abandoned. If zero then no limit is used.").
 				Default(defaultMaxElapsed),
-			service.NewFloatField("The factor used to add random jitter to each caclulated interval where `Randomized interval = RetryInterval * (1 ± RandomizationFactor)`. If zero then no jitter is used.").
+			service.NewFloatField(crboFieldRandomizationFactor).
+				Description("The factor used to add random jitter to each caclulated interval where `Randomized interval = RetryInterval * (1 ± RandomizationFactor)`. If zero then no jitter is used.").
 				Default(0.5).
 				Advanced(),
 		).

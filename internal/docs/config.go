@@ -83,6 +83,7 @@ func ReservedFieldsByType(t Type) map[string]FieldSpec {
 		TypeOutput:    {},
 		TypeCache:     {},
 		TypeRateLimit: {},
+		TypeRetry:     {},
 	}[t]; isLabelType {
 		m["label"] = labelField
 	}

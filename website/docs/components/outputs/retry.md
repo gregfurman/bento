@@ -46,6 +46,7 @@ output:
       initial_interval: 500ms
       max_interval: 3s
       max_elapsed_time: 0s
+      randomization_factor: 0.5
     output: null # No default (required)
 ```
 
@@ -98,6 +99,14 @@ The maximum period to wait before retry attempts are abandoned. If zero then no 
 
 Type: `string`  
 Default: `"0s"`  
+
+### `backoff.randomization_factor`
+
+The factor used to add random jitter to each caclulated interval where `Randomized interval = RetryInterval * (1 ± RandomizationFactor)`. If zero then no jitter is used.
+
+
+Type: `float`  
+Default: `0.5`  
 
 ### `output`
 

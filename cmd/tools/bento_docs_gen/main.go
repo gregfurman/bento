@@ -42,6 +42,7 @@ func main() {
 	service.GlobalEnvironment().WalkOutputs(viewForDir(path.Join(docsDir, "./outputs")))
 	service.GlobalEnvironment().WalkProcessors(viewForDir(path.Join(docsDir, "./processors")))
 	service.GlobalEnvironment().WalkRateLimits(viewForDir(path.Join(docsDir, "./rate_limits")))
+	service.GlobalEnvironment().WalkRetries(viewForDir(path.Join(docsDir, "./retries")))
 	service.GlobalEnvironment().WalkTracers(viewForDir(path.Join(docsDir, "./tracers")))
 	service.GlobalEnvironment().WalkScanners(viewForDir(path.Join(docsDir, "./scanners")))
 

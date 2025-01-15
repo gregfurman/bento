@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO: Add LintRules to retries.CommonRetryBackOffFields
 // func TestLocalRetryConfErrors(t *testing.T) {
 // 	conf, err := localRetryConfig().ParseYAML(`max_retries: -1`, nil)
 // 	require.NoError(t, err)

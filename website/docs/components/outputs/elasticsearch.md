@@ -74,6 +74,7 @@ output:
       initial_interval: 1s
       max_interval: 5s
       max_elapsed_time: 30s
+      randomization_factor: 0.5
     basic_auth:
       enabled: false
       username: ""
@@ -394,6 +395,14 @@ The maximum period to wait before retry attempts are abandoned. If zero then no 
 
 Type: `string`  
 Default: `"30s"`  
+
+### `backoff.randomization_factor`
+
+The factor used to add random jitter to each caclulated interval where `Randomized interval = RetryInterval * (1 ± RandomizationFactor)`. If zero then no jitter is used.
+
+
+Type: `float`  
+Default: `0.5`  
 
 ### `basic_auth`
 
