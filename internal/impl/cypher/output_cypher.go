@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+
 	"github.com/warpstreamlabs/bento/public/service"
 )
 

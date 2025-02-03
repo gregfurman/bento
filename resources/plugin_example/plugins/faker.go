@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/pioz/faker"
+
 	"github.com/warpstreamlabs/bento/public/service"
 )
 
