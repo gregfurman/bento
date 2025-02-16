@@ -2,6 +2,7 @@ package bloblang
 
 import (
 	"context"
+	"time"
 
 	ibloblang "github.com/warpstreamlabs/bento/internal/bloblang"
 	"github.com/warpstreamlabs/bento/internal/bloblang/query"
@@ -10,19 +11,29 @@ import (
 
 func registerCacheBloblangPlugins(env *ibloblang.Environment) {
 	// Register functions for CRUD operations against Cache
-	env.RegisterFunction(cacheGetFunctionSpec(), makeKeyOpConstructor(cacheGetFunctionSpec(), cacheGet))
+	env.RegisterFunction(cacheGetFunctionSpec(), makeKeyOpConstructor(cacheGetFunctionSpec(), cache.V1.Get))
 	env.RegisterFunction(cacheDeleteFunctionSpec(), makeKeyOpConstructor(cacheDeleteFunctionSpec(), cacheDelete))
-	env.RegisterFunction(cacheSetFunctionSpec(), makeValueOpConstructor(cacheSetFunctionSpec(), cacheSet))
-	env.RegisterFunction(cacheAddFunctionSpec(), makeValueOpConstructor(cacheAddFunctionSpec(), cacheAdd))
+	env.RegisterFunction(cacheSetFunctionSpec(), makeValueOpConstructor(cacheSetFunctionSpec(), cache.V1.Set))
+	env.RegisterFunction(cacheAddFunctionSpec(), makeValueOpConstructor(cacheAddFunctionSpec(), cache.V1.Add))
+}
+
+//------------------------------------------------------------------------------
+
+// cacheDelete adapts a cache delete operation to fit the cacheKeyOperation signature
+func cacheDelete(v cache.V1, ctx context.Context, key string) ([]byte, error) {
+	if err := v.Delete(ctx, key); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 //------------------------------------------------------------------------------
 
 // cacheValueOperation represents an operation that takes a value (i.e `set`, `add`)
-type cacheValueOperation func(context.Context, cache.V1, string, []byte) error
+type cacheValueOperation func(cache.V1, context.Context, string, []byte, *time.Duration) error
 
 // cacheKeyOperation represents an operation that only needs a key (i.e `delete`, `get`)
-type cacheKeyOperation func(context.Context, cache.V1, string) ([]byte, error)
+type cacheKeyOperation func(cache.V1, context.Context, string) ([]byte, error)
 
 // makeValueOpConstructor creates a constructor for cache operations that require a value
 func makeValueOpConstructor(spec query.FunctionSpec, op cacheValueOperation) func(*query.ParsedParams) (query.Function, error) {
@@ -53,7 +64,7 @@ func makeValueOpConstructor(spec query.FunctionSpec, op cacheValueOperation) fun
 				ctx := context.Background()
 
 				mgr.AccessCache(ctx, resource, func(v cache.V1) {
-					cerr = op(ctx, v, key, []byte(value))
+					cerr = op(v, ctx, key, []byte(value), nil)
 				})
 
 				if cerr != nil {
@@ -93,7 +104,7 @@ func makeKeyOpConstructor(spec query.FunctionSpec, op cacheKeyOperation) func(*q
 				ctx := context.Background()
 
 				mgr.AccessCache(ctx, resource, func(v cache.V1) {
-					output, cerr = op(ctx, v, key)
+					output, cerr = op(v, ctx, key)
 				})
 
 				if cerr != nil {
@@ -107,27 +118,4 @@ func makeKeyOpConstructor(spec query.FunctionSpec, op cacheKeyOperation) func(*q
 			nil,
 		), nil
 	}
-}
-
-//------------------------------------------------------------------------------
-
-// Cache operations
-
-func cacheGet(ctx context.Context, v cache.V1, key string) ([]byte, error) {
-	return v.Get(ctx, key)
-}
-
-func cacheDelete(ctx context.Context, v cache.V1, key string) ([]byte, error) {
-	if err := v.Delete(ctx, key); err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func cacheSet(ctx context.Context, v cache.V1, key string, value []byte) error {
-	return v.Set(ctx, key, value, nil)
-}
-
-func cacheAdd(ctx context.Context, v cache.V1, key string, value []byte) error {
-	return v.Add(ctx, key, value, nil)
 }
