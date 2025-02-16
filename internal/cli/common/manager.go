@@ -16,6 +16,7 @@ import (
 
 	"github.com/warpstreamlabs/bento/internal/api"
 	"github.com/warpstreamlabs/bento/internal/bundle"
+	"github.com/warpstreamlabs/bento/internal/bundle/bloblang"
 	"github.com/warpstreamlabs/bento/internal/bundle/errorsampling"
 	"github.com/warpstreamlabs/bento/internal/bundle/strict"
 	"github.com/warpstreamlabs/bento/internal/component/metrics"
@@ -124,6 +125,9 @@ func CreateManager(
 		err = fmt.Errorf("failed to initialise resources: %w", err)
 		return
 	}
+
+	// Register resource specific functions & methods against bloblang environment
+	bloblang.SetManagementSingleton(mgr)
 
 	stoppableMgr = newStoppableManager(httpServer, mgr)
 	return
