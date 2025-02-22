@@ -13,7 +13,7 @@ func cacheGetFunctionSpec() query.FunctionSpec {
 }
 
 func cacheDeleteFunctionSpec() query.FunctionSpec {
-	return query.NewFunctionSpec(query.FunctionCategoryEnvironment, "cache_add", "Set a key in the `cache` resource to a value. If the key already exists the action fails with a 'key already exists' error.").
+	return query.NewFunctionSpec(query.FunctionCategoryEnvironment, "cache_delete", "Delete a key and its contents from the cache. If the key does not exist the action is a no-op and will not fail with an error.").
 		Experimental().
 		MarkImpure().
 		Param(query.ParamString("resource", "The name of the `cache` resource to target.")).

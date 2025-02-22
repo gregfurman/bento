@@ -48,13 +48,13 @@ func makeValueOpConstructor(spec query.FunctionSpec, op cacheValueOperation) fun
 			return nil, err
 		}
 
-		value, err := args.FieldString("value")
+		val, err := args.FieldString("value")
 		if err != nil {
 			return nil, err
 		}
 
 		return query.ClosureFunction("function "+spec.Name,
-			func(_ query.FunctionContext) (any, error) {
+			func(fnCtx query.FunctionContext) (any, error) {
 				mgr, err := getNewManagement()
 				if err != nil {
 					return nil, err
@@ -64,13 +64,14 @@ func makeValueOpConstructor(spec query.FunctionSpec, op cacheValueOperation) fun
 				ctx := context.Background()
 
 				mgr.AccessCache(ctx, resource, func(v cache.V1) {
-					cerr = op(v, ctx, key, []byte(value), nil)
+					cerr = op(v, ctx, key, []byte(val), nil)
 				})
 
 				if cerr != nil {
 					return nil, cerr
 				}
-				return value, nil
+
+				return fnCtx.MsgBatch.Get(fnCtx.Index).AsBytes(), nil
 			},
 			nil,
 		), nil
@@ -91,7 +92,7 @@ func makeKeyOpConstructor(spec query.FunctionSpec, op cacheKeyOperation) func(*q
 		}
 
 		return query.ClosureFunction("function "+spec.Name,
-			func(_ query.FunctionContext) (any, error) {
+			func(fnCtx query.FunctionContext) (any, error) {
 				mgr, err := getNewManagement()
 				if err != nil {
 					return nil, err
@@ -113,7 +114,7 @@ func makeKeyOpConstructor(spec query.FunctionSpec, op cacheKeyOperation) func(*q
 				if output == nil {
 					return nil, nil
 				}
-				return string(output), nil
+				return fnCtx.MsgBatch.Get(fnCtx.Index).AsBytes(), nil
 			},
 			nil,
 		), nil
