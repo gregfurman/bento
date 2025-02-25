@@ -225,7 +225,7 @@ var testBatchProcessorBasic = testProcessors("basic", func(t *testing.T, insertP
 	for i, v := range resBatches[0] {
 		require.NoError(t, v.GetError())
 
-		exp := fmt.Sprintf(`[{"bar":%d,"baz":"and this","foo":"doc-%d"}]`, i, i)
+		exp := fmt.Sprintf(`[{"bar":"%d","baz":"and this","foo":"doc-%d"}]`, i, i)
 		actBytes, err := v.AsBytes()
 		require.NoError(t, err)
 
@@ -321,7 +321,7 @@ var testRawProcessorsBasic = testRawProcessors("raw", func(t *testing.T, insertP
 	for i, v := range resBatches[0] {
 		require.NoError(t, v.GetError())
 
-		exp := fmt.Sprintf(`[{"bar":%d,"baz":"and this","foo":"doc-%d"}]`, i, i)
+		exp := fmt.Sprintf(`[{"bar":"%d","baz":"and this","foo":"doc-%d"}]`, i, i)
 		actBytes, err := v.AsBytes()
 		require.NoError(t, err)
 
@@ -359,7 +359,7 @@ var testDeprecatedProcessorsBasic = testRawDeprecatedProcessors("deprecated", fu
 	for i, v := range resBatches[0] {
 		require.NoError(t, v.GetError())
 
-		exp := fmt.Sprintf(`[{"bar":%d,"baz":"and this","foo":"doc-%d"}]`, i, i)
+		exp := fmt.Sprintf(`[{"bar":"%d","baz":"and this","foo":"doc-%d"}]`, i, i)
 		actBytes, err := v.AsBytes()
 		require.NoError(t, err)
 
@@ -598,6 +598,11 @@ func TestIntegrationClickhouse(t *testing.T) {
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository:   "clickhouse/clickhouse-server",
 		ExposedPorts: []string{"9000/tcp"},
+		Env: []string{
+			"CLICKHOUSE_DB=db",
+			"CLICKHOUSE_USER=user",
+			"CLICKHOUSE_PASSWORD=pass",
+		},
 	})
 	require.NoError(t, err)
 
@@ -620,7 +625,7 @@ func TestIntegrationClickhouse(t *testing.T) {
 		return name, err
 	}
 
-	dsn := fmt.Sprintf("clickhouse://localhost:%s/", resource.GetPort("9000/tcp"))
+	dsn := fmt.Sprintf("clickhouse://user:pass@localhost:%s/db", resource.GetPort("9000/tcp"))
 	require.NoError(t, pool.Retry(func() error {
 		db, err = sql.Open("clickhouse", dsn)
 		if err != nil {
