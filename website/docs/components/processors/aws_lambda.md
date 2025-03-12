@@ -137,6 +137,7 @@ Default: `false`
 ### `function`
 
 The function to invoke.
+This field supports [interpolation functions](/docs/configuration/interpolation#bloblang-queries).
 
 
 Type: `string`  

@@ -74,7 +74,7 @@ pipeline:
 		Field(service.NewBoolField("parallel").
 			Description("Whether messages of a batch should be dispatched in parallel.").
 			Default(false)).
-		Field(service.NewStringField("function").
+		Field(service.NewInterpolatedStringField("function").
 			Description("The function to invoke.")).
 		Field(service.NewStringField("rate_limit").
 			Description("An optional [`rate_limit`](/docs/components/rate_limits/about) to throttle invocations by.").
@@ -107,7 +107,7 @@ pipeline:
 				return nil, err
 			}
 
-			function, err := conf.FieldString("function")
+			function, err := conf.FieldInterpolatedString("function")
 			if err != nil {
 				return nil, err
 			}
@@ -127,11 +127,36 @@ pipeline:
 				return nil, err
 			}
 
-			return newLambdaProc(lambda.NewFromConfig(aconf), parallel, function, numRetries, rateLimit, timeout, mgr)
+			if fnName, isStatic := function.Static(); isStatic {
+				return newLambdaProc(lambda.NewFromConfig(aconf), parallel, fnName, numRetries, rateLimit, timeout, mgr)
+			}
+
+			return newLambdaDynamicProc(lambda.NewFromConfig(aconf), parallel, function, numRetries, rateLimit, timeout, mgr)
+
 		})
 	if err != nil {
 		panic(err)
 	}
+}
+
+//------------------------------------------------------------------------------
+
+type FunctionNameResolver interface {
+	ResolveName(msg *service.Message) (string, error)
+}
+
+type StaticNameResolver string
+
+func (s StaticNameResolver) ResolveName(_ *service.Message) (string, error) {
+	return string(s), nil
+}
+
+type InterpolatedNameResolver struct {
+	interpolated *service.InterpolatedString
+}
+
+func (i InterpolatedNameResolver) ResolveName(msg *service.Message) (string, error) {
+	return i.interpolated.TryString(msg)
 }
 
 //------------------------------------------------------------------------------
@@ -144,7 +169,7 @@ type lambdaProc struct {
 	client   *lambdaClient
 	parallel bool
 
-	functionName string
+	functionName FunctionNameResolver
 	log          *service.Logger
 }
 
@@ -157,13 +182,40 @@ func newLambdaProc(
 	timeout time.Duration,
 	mgr *service.Resources,
 ) (*lambdaProc, error) {
+	if function == "" {
+		return nil, errors.New("lambda function must not be empty")
+	}
+
+	staticResolver := StaticNameResolver(function)
 	l := &lambdaProc{
-		functionName: function,
+		functionName: staticResolver,
 		log:          mgr.Logger(),
 		parallel:     parallel,
 	}
 	var err error
-	if l.client, err = newLambdaClient(lambda, function, numRetries, rateLimit, timeout, mgr); err != nil {
+	if l.client, err = newLambdaClient(lambda, staticResolver, numRetries, rateLimit, timeout, mgr); err != nil {
+		return nil, err
+	}
+	return l, nil
+}
+
+func newLambdaDynamicProc(
+	lambda lambdaAPI,
+	parallel bool,
+	ifunction *service.InterpolatedString,
+	numRetries int,
+	rateLimit string,
+	timeout time.Duration,
+	mgr *service.Resources,
+) (*lambdaProc, error) {
+	resolver := &InterpolatedNameResolver{ifunction}
+	l := &lambdaProc{
+		functionName: resolver,
+		log:          mgr.Logger(),
+		parallel:     parallel,
+	}
+	var err error
+	if l.client, err = newLambdaClient(lambda, resolver, numRetries, rateLimit, timeout, mgr); err != nil {
 		return nil, err
 	}
 	return l, nil
@@ -212,7 +264,7 @@ type lambdaClient struct {
 	log *service.Logger
 	mgr *service.Resources
 
-	function  string
+	resolver  FunctionNameResolver
 	retries   int
 	rateLimit string
 	timeout   time.Duration
@@ -220,7 +272,7 @@ type lambdaClient struct {
 
 func newLambdaClient(
 	lambda lambdaAPI,
-	function string,
+	resolver FunctionNameResolver,
 	numRetries int,
 	rateLimit string,
 	timeout time.Duration,
@@ -230,15 +282,11 @@ func newLambdaClient(
 		lambda:    lambda,
 		log:       mgr.Logger(),
 		mgr:       mgr,
-		function:  function,
+		resolver:  resolver,
 		retries:   numRetries,
 		rateLimit: rateLimit,
 		timeout:   timeout,
 	}
-	if function == "" {
-		return nil, errors.New("lambda function must not be empty")
-	}
-
 	if rateLimit != "" {
 		if !l.mgr.HasRateLimit(rateLimit) {
 			return nil, fmt.Errorf("rate limit resource '%v' was not found", rateLimit)
@@ -284,9 +332,14 @@ func (l *lambdaClient) InvokeV2(p *service.Message) error {
 			return err
 		}
 
+		functionName, err := l.resolver.ResolveName(p)
+		if err != nil {
+			return fmt.Errorf("failed to resolve function name: %w", err)
+		}
+
 		ctx, done := context.WithTimeout(context.Background(), l.timeout)
 		result, err := l.lambda.Invoke(ctx, &lambda.InvokeInput{
-			FunctionName: aws.String(l.function),
+			FunctionName: aws.String(functionName),
 			Payload:      mBytes,
 		})
 		done()
