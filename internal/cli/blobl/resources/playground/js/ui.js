@@ -7,6 +7,8 @@ class UIManager {
 
   init() {
     this.setupResizer();
+    this.setupThemeToggle();
+    this.initializeTheme();
   }
 
   setupResizer() {
@@ -78,7 +80,7 @@ class UIManager {
       font-family: 'IBM Plex Sans', sans-serif;
       font-size: 13px;
       font-weight: 500;
-      z-index: 1000;
+      z-index: 200;
       opacity: 0;
       transform: translateX(100%);
       transition: all 0.3s ease;
@@ -120,6 +122,42 @@ class UIManager {
           badge.classList.remove("show");
         }
       }, 2000);
+    }
+  }
+
+  initializeTheme() {
+    // Check for saved theme preference or default to light mode
+    const savedTheme = localStorage.getItem('bento-playground-theme') || 'light';
+    this.setTheme(savedTheme);
+  }
+
+  setupThemeToggle() {
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+      themeToggle.addEventListener('click', () => {
+        this.toggleTheme();
+      });
+    }
+  }
+
+  toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    this.setTheme(newTheme);
+    
+    // Save to localStorage
+    localStorage.setItem('bento-playground-theme', newTheme);
+  }
+
+  setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    
+    // Update button accessibility
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+      const isDark = theme === 'dark';
+      themeToggle.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+      themeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
     }
   }
 }

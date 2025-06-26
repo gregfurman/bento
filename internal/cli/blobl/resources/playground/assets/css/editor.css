@@ -28,6 +28,29 @@
   background-color: rgba(253, 229, 216, 0.3) !important;
 }
 
+/* Dark mode adjustments - identical to website */
+[data-theme="dark"] .ace-bento .ace_editor {
+  background-color: #272822 !important;
+  color: var(--bento-text-body) !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_gutter {
+  background-color: var(--bento-bg-alt) !important;
+  color: var(--bento-text-heading) !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_active-line {
+  background-color: rgba(255, 244, 233, 0.08) !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_selection {
+  background-color: rgba(235, 135, 136, 0.15) !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_gutter-active-line {
+  background-color: var(--bento-button-selected) !important;
+}
+
 .ace-bento .ace_marker-layer .ace_bracket {
   background: rgba(235, 135, 136, 0.3);
   border: 1px solid var(--bento-bg-highlight);
@@ -89,6 +112,56 @@
 /* Syntax highlighting - Comments */
 .ace-bento .ace_comment {
   color: #999999 !important;
+  font-style: italic !important;
+}
+
+/* Dark mode syntax highlighting - Monokai theme from website */
+[data-theme="dark"] .ace-bento .ace_string {
+  color: rgb(230, 219, 116) !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_constant.ace_numeric {
+  color: rgb(174, 129, 255) !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_constant.ace_language {
+  color: rgb(174, 129, 255) !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_constant.ace_language.ace_null {
+  color: rgb(174, 129, 255) !important;
+  font-style: italic !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_keyword {
+  color: rgb(249, 38, 114) !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_punctuation {
+  color: rgb(249, 38, 114) !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_support.ace_function {
+  color: rgb(166, 226, 46) !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_support.ace_method {
+  color: rgb(166, 226, 46) !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_variable {
+  color: rgb(248, 248, 242) !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="dark"] .ace-bento .ace_comment {
+  color: rgb(136, 132, 111) !important;
   font-style: italic !important;
 }
 
@@ -255,4 +328,25 @@
   color: var(--bento-text-body);
   margin-left: 4px;
   line-height: 1.3;
+}
+
+/* Dark mode documentation tooltip styles */
+[data-theme="dark"] .ace-doc {
+  background: var(--bento-bg-alt);
+  color: var(--bento-text-body);
+}
+
+[data-theme="dark"] .ace-doc-signature {
+  background-color: var(--bento-bg-main);
+  color: var(--bento-text-heading);
+}
+
+[data-theme="dark"] .ace-doc-examples code {
+  background-color: var(--bento-bg-main);
+  color: var(--bento-text-heading);
+}
+
+[data-theme="dark"] .ace-doc-param code {
+  background-color: var(--bento-bg-main);
+  color: var(--bento-text-heading);
 }

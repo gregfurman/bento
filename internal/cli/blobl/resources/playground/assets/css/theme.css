@@ -28,6 +28,25 @@
   --bento-font-mono: "Monaco", "IBM Plex Mono", "SF Mono", "Consolas", monospace;
 }
 
+/* Dark mode color palette - identical to website */
+[data-theme="dark"] {
+  --bento-bg-main: #2A1A17;
+  --bento-accent: #ff5252;
+  --bento-bg-alt: #272822;
+  --bento-bg-highlight: #EB8788;
+  --bento-text-body: #FFF4E9;
+  --bento-text-heading: #FFF4E9;
+  --bento-text-highlight: #ff5252;
+  --bento-button-selected: #2d2e27;
+  --bento-button-unselected: #272822;
+  --bento-button-text: #FFF4E9;
+  --bento-success: #a9dc76;
+  --bento-success-bg: #2a2b25;
+  --bento-error: #ff6188;
+  --bento-error-bg: #3d1b1b;
+  --bento-warning: #ffd866;
+}
+
 /* Reset & Base Styles */
 *,
 *::before,
@@ -153,6 +172,12 @@ body {
   resize: none;
   outline: none;
   tab-size: 2;
+}
+
+/* Dark mode editor styles - identical to website */
+[data-theme="dark"] .editor {
+  background: var(--bento-bg-alt);
+  color: var(--bento-text-body);
 }
 
 .fallback-editor {
