@@ -14,6 +14,7 @@ import (
 	_ "github.com/warpstreamlabs/bento/public/components/cassandra"
 	_ "github.com/warpstreamlabs/bento/public/components/changelog"
 	_ "github.com/warpstreamlabs/bento/public/components/cockroachdb"
+	_ "github.com/warpstreamlabs/bento/public/components/conduit"
 	_ "github.com/warpstreamlabs/bento/public/components/confluent"
 	_ "github.com/warpstreamlabs/bento/public/components/couchbase"
 	_ "github.com/warpstreamlabs/bento/public/components/crypto"
