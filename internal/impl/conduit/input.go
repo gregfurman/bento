@@ -31,16 +31,14 @@ func newConduitInput(parsedConf *service.ParsedConfig) (service.Input, error) {
 		return nil, err
 	}
 
-	cfg := conduit.DefaultConfig()
-	plugin, exists := cfg.ConnectorPlugins[conf.plugin]
+	availablePlugins := conduit.DefaultConfig().ConnectorPlugins
+	plugin, exists := availablePlugins[conf.plugin]
 	if !exists {
 		return nil, fmt.Errorf("plugin %s not found", conf.plugin)
 	}
 
 	src := plugin.NewSource()
-
-	srcConfig := src.Config()
-	err = sdk.Util.ParseConfig(context.Background(), conf.settings, srcConfig, plugin.NewSpecification().SourceParams)
+	err = sdk.Util.ParseConfig(context.Background(), conf.settings, src.Config(), plugin.NewSpecification().SourceParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure source: %w", err)
 	}
@@ -60,7 +58,7 @@ func (i *conduitInput) Read(ctx context.Context) (*service.Message, service.AckF
 		return nil, nil, err
 	}
 
-	msg := convertToMessage(record)
+	msg := recordToMessage(record)
 	return msg, func(ctx context.Context, err error) error {
 		return i.src.Ack(ctx, record.Position)
 	}, nil

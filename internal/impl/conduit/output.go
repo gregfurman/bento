@@ -39,16 +39,14 @@ func newConduitOutput(parsedConf *service.ParsedConfig) (service.Output, error) 
 		return nil, err
 	}
 
-	cfg := conduit.DefaultConfig()
-	plugin, exists := cfg.ConnectorPlugins[conf.plugin]
+	availablePlugins := conduit.DefaultConfig().ConnectorPlugins
+	plugin, exists := availablePlugins[conf.plugin]
 	if !exists {
 		return nil, fmt.Errorf("plugin %s not found", conf.plugin)
 	}
 
 	dest := plugin.NewDestination()
-	destConfig := dest.Config()
-
-	err = sdk.Util.ParseConfig(context.Background(), conf.settings, destConfig, plugin.NewSpecification().DestinationParams)
+	err = sdk.Util.ParseConfig(context.Background(), conf.settings, dest.Config(), plugin.NewSpecification().DestinationParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure destination: %w", err)
 	}
@@ -64,7 +62,7 @@ func (w *conduitOutput) Connect(ctx context.Context) error {
 }
 
 func (w *conduitOutput) Write(ctx context.Context, msg *service.Message) error {
-	record, err := convertToRecord(msg, w.operation)
+	record, err := messageToRecord(msg)
 	if err != nil {
 		return err
 	}

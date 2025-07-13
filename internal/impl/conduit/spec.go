@@ -2,13 +2,17 @@ package conduit
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/warpstreamlabs/bento/public/service"
 )
 
+const (
+	conduitPluginField   = "plugin"
+	conduitIdField       = "id"
+	conduitSettingsField = "settings"
+)
+
 type conduitConfig struct {
-	id       string
 	plugin   string
 	settings map[string]string
 }
@@ -18,9 +22,9 @@ func connectorSpec() *service.ConfigSpec {
 		Beta().
 		Summary("Runs Conduit connectors as source or destination components.").
 		Fields(
-			service.NewStringField("plugin"),
-			service.NewStringField("id"),
-			service.NewAnyMapField("settings").Optional(),
+			service.NewStringField(conduitPluginField),
+			service.NewStringField(conduitIdField).Description("No-op for backwards compatability with Conduit config. Use `label` instead.").Default(""), // for backwards compatability
+			service.NewAnyMapField(conduitSettingsField).Optional(),
 		)
 }
 
@@ -30,16 +34,12 @@ func parseConfig(pconf *service.ParsedConfig) (*conduitConfig, error) {
 	}
 
 	var err error
-	if conf.plugin, err = pconf.FieldString("plugin"); err != nil {
+	if conf.plugin, err = pconf.FieldString(conduitPluginField); err != nil {
 		return nil, err
 	}
 
-	if conf.id, err = pconf.FieldString("id"); err != nil {
-		return nil, err
-	}
-
-	if pconf.Contains("settings") {
-		configMap, err := pconf.FieldAny("settings")
+	if pconf.Contains(conduitSettingsField) {
+		configMap, err := pconf.FieldAny(conduitSettingsField)
 		if err != nil {
 			return nil, err
 		}
@@ -65,10 +65,6 @@ func flattenMap(prefix string, src map[string]interface{}, dest map[string]strin
 		switch child := v.(type) {
 		case map[string]interface{}:
 			flattenMap(prefix+k, child, dest)
-		case []interface{}:
-			for i := 0; i < len(child); i++ {
-				dest[prefix+k+"."+strconv.Itoa(i)] = fmt.Sprintf("%v", child[i])
-			}
 		default:
 			dest[prefix+k] = fmt.Sprintf("%v", v)
 		}

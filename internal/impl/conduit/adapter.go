@@ -1,48 +1,39 @@
 package conduit
 
 import (
+	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/conduitio/conduit-commons/opencdc"
-	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/warpstreamlabs/bento/public/service"
 )
 
 var errInvalidFormat = errors.New("cannot convert message to opencdc format")
 
 const (
-	metaRecordPosition  = "position"
-	metaRecordKey       = "key"
-	metaRecordOperation = "operation"
+	metaRecordPosition  = "conduit_position"
+	metaRecordOperation = "conduit_operation"
 )
 
-type partialRecord struct {
-	Payload opencdc.Data `json:"payload"`
-	Key     opencdc.Data `json:"key"`
-}
-
-func convertToMessage(record opencdc.Record) *service.Message {
+func recordToMessage(record opencdc.Record) *service.Message {
 	msg := service.NewMessage(nil)
-	var payload opencdc.Data
-	if record.Operation == opencdc.OperationDelete {
-		// TODO(gregfurman): Should we be capturing data when delete?
-		payload = record.Payload.Before
-	} else {
-		payload = record.Payload.After
+	mRecord := record.Map()
+
+	data := map[string]interface{}{}
+
+	if key := mRecord["key"]; key != nil {
+		data["key"] = asStructured(key)
 	}
 
-	data := partialRecord{
-		Payload: payload,
-		Key:     record.Key,
+	if payload := mRecord["payload"]; payload != nil {
+		data["payload"] = asStructured(payload)
 	}
 
 	msg.MetaSetMut(metaRecordPosition, record.Position.String())
 	msg.MetaSetMut(metaRecordOperation, record.Operation.String())
 
 	for key, value := range record.Metadata {
-		fmtKey := strings.ToLower(strings.ReplaceAll(key, ".", "_"))
-		msg.MetaSet(fmtKey, value)
+		msg.MetaSet(key, value)
 	}
 
 	msg.SetStructuredMut(data)
@@ -50,35 +41,62 @@ func convertToMessage(record opencdc.Record) *service.Message {
 	return msg
 }
 
-func convertToRecord(message *service.Message, op opencdc.Operation) (opencdc.Record, error) {
-	var meta opencdc.Metadata
-	_ = message.MetaWalk(func(key, value string) error {
-		if key != metaRecordKey && key != metaRecordPosition && key != metaRecordOperation {
-			fmtKey := strings.ReplaceAll(key, "_", ".")
-			meta[fmtKey] = value
+func asStructured(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		for k, val := range v {
+			v[k] = asStructured(val)
 		}
-		return nil
-	})
+		return v
+	case []byte:
+		var parsed interface{}
+		if err := json.Unmarshal(v, &parsed); err == nil {
+			return parsed
+		}
+		return map[string]interface{}{}
+	default:
+		return v
+	}
+}
 
-	structured, err := message.AsStructuredMut()
+func messageToRecord(message *service.Message) (opencdc.Record, error) {
+	record := opencdc.Record{}
+	bMsg, err := message.AsBytes()
 	if err != nil {
 		return opencdc.Record{}, err
 	}
-	data, ok := structured.(partialRecord)
-	if !ok {
-		return opencdc.Record{}, errInvalidFormat
+
+	if err := record.UnmarshalJSON(bMsg); err != nil {
+		return opencdc.Record{}, err
 	}
 
-	switch op {
-	case opencdc.OperationCreate:
-		return sdk.Util.Source.NewRecordCreate(opencdc.Position(""), meta, data.Key, data.Payload), nil
-	case opencdc.OperationUpdate:
-		return sdk.Util.Source.NewRecordUpdate(opencdc.Position(""), meta, data.Key, nil, data.Payload), nil
-	case opencdc.OperationDelete:
-		return sdk.Util.Source.NewRecordDelete(opencdc.Position(""), meta, data.Key, data.Payload), nil
-	case opencdc.OperationSnapshot:
-		return sdk.Util.Source.NewRecordSnapshot(opencdc.Position(""), meta, data.Key, data.Payload), nil
-	default:
-		return sdk.Util.Source.NewRecordCreate(opencdc.Position(""), meta, data.Key, data.Payload), nil
+	if record.Metadata == nil {
+		record.Metadata = make(opencdc.Metadata)
 	}
+
+	_ = message.MetaWalk(func(key, value string) error {
+		if _, ok := record.Metadata[key]; ok {
+			return nil
+		}
+
+		if key != metaRecordPosition && key != metaRecordOperation {
+			record.Metadata[key] = value
+		}
+
+		return nil
+	})
+
+	if record.Operation == 0 {
+		if op, exists := message.MetaGet(metaRecordOperation); exists {
+			record.Operation.UnmarshalText([]byte(op))
+		}
+	}
+
+	if record.Position == nil {
+		if pos, exists := message.MetaGet(metaRecordPosition); exists {
+			record.Position = opencdc.Position(pos)
+		}
+	}
+
+	return record, nil
 }
