@@ -66,6 +66,11 @@ func messageToRecord(message *service.Message) (opencdc.Record, error) {
 		return opencdc.Record{}, err
 	}
 
+	if bMsg == nil {
+		return opencdc.Record{}, nil
+	}
+
+	// TODO(gregfurman): Handle the case of empty data being passed in i.e {}, ""
 	if err := record.UnmarshalJSON(bMsg); err != nil {
 		return opencdc.Record{}, err
 	}
