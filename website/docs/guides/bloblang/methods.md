@@ -994,6 +994,35 @@ root.new_value = (this.value * (pi() / 180)).cos()
 # Out: {"new_value":-1}
 ```
 
+### `cosine_similarity`
+
+Calculates the cosine similarity between two vectors a and b. Vectors must be the same length and neither vector can be null (all zeros).
+
+#### Parameters
+
+**`vector`** &lt;unknown&gt; Vector of numbers to compare against.  
+
+#### Examples
+
+
+Calculate similarity between vectors
+
+```coffee
+root.similarity = [1, 2, 3].cosine_similarity([2, 4, 6])
+
+# In:  {}
+# Out: {"similarity":1}
+```
+
+Orthogonal vectors have zero similarity
+
+```coffee
+root.similarity = [1, 0].cosine_similarity([0, 1])
+
+# In:  {}
+# Out: {"similarity":0}
+```
+
 ### `float32`
 
 

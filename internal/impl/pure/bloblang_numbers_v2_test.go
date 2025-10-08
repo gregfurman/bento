@@ -228,75 +228,103 @@ func TestCosineSimilarityBloblang(t *testing.T) {
 	}{
 		{
 			name:    "identical vectors",
-			mapping: `root = cosine_similarity([1.0, 2.0, 3.0], [1.0, 2.0, 3.0])`,
+			mapping: `root = [1.0, 2.0, 3.0].cosine_similarity([1.0, 2.0, 3.0])`,
 			output:  1.0,
 		},
 		{
 			name:    "opposite vectors",
-			mapping: `root = cosine_similarity([1.0, 2.0, 3.0], [-1.0, -2.0, -3.0])`,
+			mapping: `root = [1.0, 2.0, 3.0].cosine_similarity([-1.0, -2.0, -3.0])`,
 			output:  -1.0,
 		},
 		{
 			name:    "orthogonal vectors",
-			mapping: `root = cosine_similarity([1.0, 0.0], [0.0, 1.0])`,
+			mapping: `root = [1.0, 0.0].cosine_similarity([0.0, 1.0])`,
 			output:  0.0,
 		},
 		{
 			name:    "mixed numeric types",
-			mapping: `root = cosine_similarity([1, 2, 3], [1.0, 2.0, 3.0])`,
+			mapping: `root = [1, 2, 3].cosine_similarity([1.0, 2.0, 3.0])`,
 			output:  1.0,
 		},
 		{
 			name:    "more mixed numeric types",
-			mapping: `root = cosine_similarity([1.0, 2], [1, 2.0])`,
+			mapping: `root = [1.0, 2].cosine_similarity([1, 2.0])`,
 			output:  1.0,
 		},
 		{
 			name: "using variables",
 			mapping: `let a = [1.0, 2.0, 3.0]
 let b = [4.0, 5.0, 6.0]
-root = cosine_similarity($a, $b)`,
+root = $a.cosine_similarity($b)`,
 			output: 0.9746318461970762,
 		},
 		{
 			name:              "unequal length vectors",
-			mapping:           `root = cosine_similarity([1.0, 2.0], [1.0, 2.0, 3.0])`,
+			mapping:           `root = [1.0, 2.0].cosine_similarity([1.0, 2.0, 3.0])`,
 			execErrorContains: "vectors must be equal length",
 		},
 		{
 			name:              "empty vectors",
-			mapping:           `root = cosine_similarity([], [])`,
+			mapping:           `root = [].cosine_similarity([])`,
 			execErrorContains: "vectors cannot be empty",
 		},
 		{
 			name:              "null vector",
-			mapping:           `root = cosine_similarity([0.0, 0.0], [1.0, 2.0])`,
+			mapping:           `root = [0.0, 0.0].cosine_similarity([1.0, 2.0])`,
 			execErrorContains: "vectors must not be null (all zeros)",
 		},
 		{
 			name:              "invalid vector type",
-			mapping:           `root = cosine_similarity(["a", "b"], [1.0, 2.0])`,
+			mapping:           `root = ["a", "b"].cosine_similarity([1.0, 2.0])`,
+			execErrorContains: "vector must be an array of numeric types",
+		},
+		{
+			name:              "invalid argument type",
+			mapping:           `root = [1.0, 2.0].cosine_similarity(["a", "b"])`,
 			execErrorContains: "vector must be an array of numeric types",
 		},
 		{
 			name:    "single element vectors",
-			mapping: `root = cosine_similarity([5], [3])`,
+			mapping: `root = [5].cosine_similarity([3])`,
 			output:  1.0,
 		},
 		{
 			name:    "from input fields",
-			mapping: `root = cosine_similarity(this.vector_a, this.vector_b)`,
+			mapping: `root = this.vector_a.cosine_similarity(this.vector_b)`,
 			input: map[string]any{
-				"vector_a": []float64{1.0, 2.0, 3.0},
-				"vector_b": []float64{4.0, 5.0, 6.0},
+				"vector_a": []any{1.0, 2.0, 3.0},
+				"vector_b": []any{4.0, 5.0, 6.0},
 			},
 			output: 0.9746318461970762,
 		},
 		{
 			name:              "missing field error",
-			mapping:           `root = cosine_similarity(this.missing, [1.0, 2.0])`,
+			mapping:           `root = this.missing.cosine_similarity([1.0, 2.0])`,
 			input:             map[string]any{},
+			execErrorContains: "expected array value",
+		},
+		{
+			name:              "non-array method target",
+			mapping:           `root = "not an array".cosine_similarity([1.0, 2.0])`,
+			execErrorContains: "expected array value",
+		},
+		{
+			name:              "number method target",
+			mapping:           `root = 123.cosine_similarity([1.0, 2.0])`,
+			execErrorContains: "expected array value",
+		},
+		{
+			name:              "non-array parameter",
+			mapping:           `root = [1].cosine_similarity(1.0)`,
 			execErrorContains: "vector must be an array of numeric types",
+		},
+		{
+			name:    "chaining with other methods",
+			mapping: `root = this.vector_a.map_each(v -> v * 2).cosine_similarity([2.0, 4.0, 6.0])`,
+			input: map[string]any{
+				"vector_a": []any{1.0, 2.0, 3.0},
+			},
+			output: 1.0,
 		},
 	}
 

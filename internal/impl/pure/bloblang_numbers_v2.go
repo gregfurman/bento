@@ -17,37 +17,30 @@ var (
 
 func init() {
 	cosineSimilaritySpec := bloblang.NewPluginSpec().
-		Category(query.FunctionCategoryGeneral).
+		Category(query.MethodCategoryNumbers).
 		Description("Calculates the cosine similarity between two vectors a and b. Vectors must be the same length and neither vector can be null (all zeros).").
-		Param(bloblang.NewAnyParam("a").Description("Vector of numbers.")).
-		Param(bloblang.NewAnyParam("b").Description("Vector of numbers.")).
+		Param(bloblang.NewAnyParam("vector").Description("Vector of numbers to compare against.")).
 		Example(
 			"Calculate similarity between vectors",
-			`root.similarity = cosine_similarity([1, 2, 3], [2, 4, 6])`,
+			`root.similarity = [1, 2, 3].cosine_similarity([2, 4, 6])`,
 			[2]string{`{}`, `{"similarity":1}`},
 		).
 		Example(
 			"Orthogonal vectors have zero similarity",
-			`root.similarity = cosine_similarity([1, 0], [0, 1])`,
+			`root.similarity = [1, 0].cosine_similarity([0, 1])`,
 			[2]string{`{}`, `{"similarity":0}`},
 		)
 
-	if err := bloblang.RegisterFunctionV2(
+	if err := bloblang.RegisterMethodV2(
 		"cosine_similarity", cosineSimilaritySpec,
-		func(args *bloblang.ParsedParams) (bloblang.Function, error) {
-
-			aVecArg, err := args.Get("a")
+		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
+			bVecArg, err := args.Get("vector")
 			if err != nil {
 				return nil, err
 			}
 
-			bVecArg, err := args.Get("b")
-			if err != nil {
-				return nil, err
-			}
-
-			return func() (any, error) {
-				aVec, err := toFloat64(aVecArg)
+			return bloblang.ArrayMethod(func(input []any) (any, error) {
+				aVec, err := toFloat64(input)
 				if err != nil {
 					return nil, err
 				}
@@ -58,7 +51,7 @@ func init() {
 				}
 
 				return cosine(aVec, bVec)
-			}, nil
+			}), nil
 		},
 	); err != nil {
 		panic(err)
@@ -71,7 +64,6 @@ func cosine(a, b []float64) (cosine float64, err error) {
 	if len(a) != len(b) {
 		return 0, errVectorUnequalLength
 	}
-
 	if len(a) == 0 || len(b) == 0 {
 		return 0, errVectorEmpty
 	}
@@ -87,6 +79,7 @@ func cosine(a, b []float64) (cosine float64, err error) {
 	if ssA == 0 || ssB == 0 {
 		return 0.0, errVectorNull
 	}
+
 	return dotProduct / (math.Sqrt(ssA) * math.Sqrt(ssB)), nil
 }
 
