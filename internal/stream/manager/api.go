@@ -373,6 +373,28 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sanitiseConfig := func(prov docs.Provider, conf any) (any, error) {
+		var node yaml.Node
+		if err := node.Encode(conf); err != nil {
+			return nil, err
+		}
+
+		sanitConf := docs.NewSanitiseConfig(prov)
+		sanitConf.RemoveTypeField = true
+		sanitConf.ScrubSecrets = true
+
+		if err := stream.Spec().SanitiseYAML(&node, sanitConf); err != nil {
+			return nil, err
+		}
+
+		var v map[string]any
+		if err := node.Decode(&v); err != nil {
+			return nil, err
+		}
+
+		return v, nil
+	}
+
 	var conf stream.Config
 	var lints []string
 	switch r.Method {
@@ -393,8 +415,12 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		var info *StreamStatus
 		if info, serverErr = m.Read(id); serverErr == nil {
+			var sconf any
 			conf := info.Config()
-			sanit := conf.GetRawSource()
+			sconf, requestErr = sanitiseConfig(m.manager.Environment(), conf.GetRawSource())
+			if requestErr != nil {
+				return
+			}
 
 			var bodyBytes []byte
 			if bodyBytes, serverErr = json.Marshal(struct {
@@ -406,7 +432,7 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 				Active:    info.IsRunning(),
 				Uptime:    info.Uptime().Seconds(),
 				UptimeStr: info.Uptime().String(),
-				Config:    sanit,
+				Config:    sconf,
 			}); serverErr != nil {
 				return
 			}
