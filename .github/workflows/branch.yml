@@ -1,0 +1,29 @@
+name: Create a new branch
+on:
+  workflow_dispatch:
+    inputs:
+      branchName:
+        description: 'Name of the branch'
+        required: true
+      ref:
+        description: 'Git reference to create the branch from'
+        required: false
+        default: main
+
+jobs:
+  create-branch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      BRANCH_NAME: ${{ inputs.branchName }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: '${{ inputs.ref }}'
+      
+      - run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git checkout -b "$BRANCH_NAME"
+          git push origin "$BRANCH_NAME"
