@@ -417,8 +417,7 @@ func isAuthError(driver string, err error) bool {
 		// pq.Error has a SQLState() method that returns the PostgreSQL error code.
 		// SQLSTATE class 28 = Invalid Authorization Specification
 		// (e.g. 28P01 for PAM/password auth failure).
-		var stateErr interface{ SQLState() string }
-		if errors.As(err, &stateErr) {
+		if stateErr, ok := errors.AsType[interface{ SQLState() string }](err); ok {
 			return strings.HasPrefix(stateErr.SQLState(), "28")
 		}
 	case "mysql":
