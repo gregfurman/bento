@@ -38,7 +38,7 @@ func TestIntegrationWriter(t *testing.T) {
 	pool := dockertest.NewPoolT(t, "", dockertest.WithMaxWait(time.Minute))
 
 	resource, err := pool.Run(t.Context(), "elasticsearch",
-		dockertest.WithTag("7.17.0"),
+		dockertest.WithTag(elasticsearch.ElasticSearchV7),
 		dockertest.WithEnv([]string{
 			"discovery.type=single-node",
 			"ES_JAVA_OPTS=-Xms512m -Xmx512m", // By default ES immediately gobbles half the available RAM, what a psychopath.

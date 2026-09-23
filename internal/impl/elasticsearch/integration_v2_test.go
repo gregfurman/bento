@@ -300,7 +300,7 @@ func startElasticsearch(t *testing.T, env []string) (pool dockertest.Pool, resou
 	pool = dockertest.NewPoolT(t, "", dockertest.WithMaxWait(time.Minute))
 
 	resource = pool.RunT(t, "elasticsearch",
-		dockertest.WithTag("8.16.5"),
+		dockertest.WithTag(ElasticSearchV8),
 		dockertest.WithEnv(env),
 		dockertest.WithoutReuse(),
 	)

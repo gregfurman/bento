@@ -38,7 +38,7 @@ func TestIntegrationWriterV2(t *testing.T) {
 	pool := dockertest.NewPoolT(t, "", dockertest.WithMaxWait(time.Minute))
 
 	resource, err := pool.Run(t.Context(), "elasticsearch",
-		dockertest.WithTag("8.16.5"),
+		dockertest.WithTag(elasticsearch.ElasticSearchV8),
 		dockertest.WithEnv([]string{
 			"discovery.type=single-node",
 			"xpack.security.enabled=false",

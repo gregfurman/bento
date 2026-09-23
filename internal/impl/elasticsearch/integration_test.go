@@ -47,7 +47,7 @@ func TestIntegrationElasticsearchV8(t *testing.T) {
 	pool := dockertest.NewPoolT(t, "", dockertest.WithMaxWait(time.Minute))
 
 	resource := pool.RunT(t, "elasticsearch",
-		dockertest.WithTag("8.1.2"),
+		dockertest.WithTag(ElasticSearchV8),
 		dockertest.WithEnv([]string{
 			"discovery.type=single-node",
 			"xpack.security.enabled=false",
@@ -127,7 +127,7 @@ func TestIntegrationElasticsearchV7(t *testing.T) {
 	pool := dockertest.NewPoolT(t, "", dockertest.WithMaxWait(time.Minute))
 
 	resource := pool.RunT(t, "elasticsearch",
-		dockertest.WithTag("7.17.2"),
+		dockertest.WithTag(ElasticSearchV7),
 		dockertest.WithEnv([]string{
 			"discovery.type=single-node",
 			"ES_JAVA_OPTS=-Xms512m -Xmx512m", // By default ES immediately gobbles half the available RAM, what a psychopath.
@@ -207,7 +207,7 @@ func TestIntegrationConnectTLS(t *testing.T) {
 	pool := dockertest.NewPoolT(t, "", dockertest.WithMaxWait(time.Minute))
 
 	resource := pool.RunT(t, "elasticsearch",
-		dockertest.WithTag("8.16.5"),
+		dockertest.WithTag(ElasticSearchV8),
 		dockertest.WithEnv([]string{
 			"discovery.type=single-node",
 			"ES_JAVA_OPTS=-Xms512m -Xmx512m",
@@ -279,7 +279,7 @@ func BenchmarkIntegrationElasticsearch(b *testing.B) {
 	pool := dockertest.NewPoolT(b, "", dockertest.WithMaxWait(time.Minute))
 
 	resource := pool.RunT(b, "elasticsearch",
-		dockertest.WithTag("7.13.4"),
+		dockertest.WithTag(ElasticSearchV7),
 		dockertest.WithEnv([]string{
 			"discovery.type=single-node",
 			"ES_JAVA_OPTS=-Xms512m -Xmx512m", // By default ES immediately gobbles half the available RAM, what a psychopath.
